@@ -12,7 +12,7 @@ var M = Math,
 		0, 0, 0, 1]),
 	pm,
 	vm = new FA(im),
-	nm = new FA(9),
+	nm = new FA(16),
 	cm = new FA(16),
 	m = new FA(16),
 	far = 1000,
@@ -222,25 +222,55 @@ function translate(out, a, x, y, z) {
 	}
 }
 
-var white = [1, 1, 1, 1]
+// from https://github.com/toji/gl-matrix
+function transpose(out, a) {
+	if (out === a) {
+		var a01 = a[1], a02 = a[2], a03 = a[3],
+			a12 = a[6], a13 = a[7], a23 = a[11]
+
+		out[1] = a[4]
+		out[2] = a[8]
+		out[3] = a[12]
+		out[4] = a01
+		out[6] = a[9]
+		out[7] = a[13]
+		out[8] = a02
+		out[9] = a12
+		out[11] = a[14]
+		out[12] = a03
+		out[13] = a13
+		out[14] = a23
+	} else {
+		out[0] = a[0]
+		out[1] = a[4]
+		out[2] = a[8]
+		out[3] = a[12]
+		out[4] = a[1]
+		out[5] = a[5]
+		out[6] = a[9]
+		out[7] = a[13]
+		out[8] = a[2]
+		out[9] = a[6]
+		out[10] = a[10]
+		out[11] = a[14]
+		out[12] = a[3]
+		out[13] = a[7]
+		out[14] = a[11]
+		out[15] = a[15]
+	}
+}
+
 function drawModel(mm, model, uniforms, color) {
 	multiply(m, vm, mm)
 	multiply(m, pm, m)
 
-	nm[0] = mm[0]
-	nm[1] = mm[4]
-	nm[2] = mm[8]
-
-	nm[3] = mm[1]
-	nm[4] = mm[5]
-	nm[5] = mm[9]
-
-	nm[6] = mm[2]
-	nm[7] = mm[6]
-	nm[8] = mm[10]
+	// we need to invert and transpose the model matrix so the
+	// normals are scaled correctly
+	invert(nm, mm)
+	transpose(nm, nm)
 
 	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, m)
-	gl.uniformMatrix3fv(uniforms.nm, gl.FALSE, nm)
+	gl.uniformMatrix4fv(uniforms.nm, gl.FALSE, nm)
 	gl.uniformMatrix4fv(uniforms.mm, gl.FALSE, mm)
 	gl.uniform4fv(uniforms.color, color)
 
@@ -249,6 +279,13 @@ function drawModel(mm, model, uniforms, color) {
 		model.numberOfVertices,
 		gl.UNSIGNED_SHORT,
 		0)
+
+	/*gl.drawElementsInstanced(
+		gl.TRIANGLES,
+		model.numberOfVertices,
+		gl.UNSIGNED_SHORT,
+		0,
+		9)*/
 
 	/*gl.uniform4fv(uniforms.color, white)
 	gl.drawElements(
@@ -284,15 +321,6 @@ function draw() {
 			model = e.model
 			bindModel(attribs, model)
 		}
-		/*if (i === 0) {
-			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-			gl.enable(gl.BLEND)
-			gl.disable(gl.DEPTH_TEST)
-		} else {
-			gl.blendFunc(gl.ONE, gl.ZERO)
-			gl.disable(gl.BLEND)
-			gl.enable(gl.DEPTH_TEST)
-		}*/
 		drawModel(e.matrix, model, uniforms, e.color)
 		if (e.update) {
 			e.update()
@@ -575,7 +603,6 @@ function createHeightMap(size, roughness) {
 	var map = new FA(size * size),
 		max = size - 1
 	function offset(x, y) {
-		//return (size * (y % max) + (x % max)) | 0
 		return (size * y + x) | 0
 	}
 	function set(x, y, value) {
@@ -587,10 +614,6 @@ function createHeightMap(size, roughness) {
 	function get(x, y) {
 		return map[offset(x % max, y % max)]
 	}
-	/*set(0, 0, M.random())
-	set(max, 0, M.random())
-	set(max, max, M.random())
-	set(0, max, M.random())*/
 	var v = M.random()
 	set(0, 0, v)
 	set(max, 0, v)
@@ -612,7 +635,7 @@ function createHeightMap(size, roughness) {
 		if (y + step < size) { a += get(x, y + step); ++i }
 		set(x, y, a / i + offset)
 	}
-	/*for (var step = max;;) {
+	for (var step = max;;) {
 		var x, y, half = step >> 1,
 			scale = roughness * (step / max)
 		if (half < 1) {
@@ -629,29 +652,11 @@ function createHeightMap(size, roughness) {
 			}
 		}
 		step = half
-	}*/
-	function divide(step) {
-		var x, y, half = step >> 1, scale = roughness * (step / max)
-		if (half < 1) {
-			return
-		}
-		for (y = half; y < max; y += step) {
-			for (x = half; x < max; x += step) {
-				square(x, y, half, M.random() * scale * 2 - scale)
-			}
-		}
-		for (y = 0; y <= max; y += half) {
-			for (x = (y + half) % step; x <= max; x += step) {
-				diamond(x, y, half, M.random() * scale * 2 - scale)
-			}
-		}
-		divide(half)
 	}
-	divide(max)
 	return map
 }
 
-/*function drawHeightMap(heightMap, size) {
+function drawHeightMap(heightMap, size) {
 	var c = D.getElementById("Heightmap"),
 		cx = c.getContext("2d"),
 		s = size << 2
@@ -666,9 +671,9 @@ function createHeightMap(size, roughness) {
 			cx.fillRect(x << 2, y << 2, 4, 4)
 		}
 	}
-}*/
+}
 
-function drawHeightMap(heightMap, size) {
+function drawHeightMap4Times(heightMap, size) {
 	var c = D.getElementById("Heightmap"),
 		cx = c.getContext("2d"),
 		s = size << 2
@@ -689,26 +694,21 @@ function drawHeightMap(heightMap, size) {
 	}
 }
 
-function createGround() {
+function createGround(power, roughness, amplification) {
 	var vertices = [],
 		indicies = [],
-		//radius = 11,
-		//size = radius * 2 + 1,
-		//heightMap = createHeightMap(size >> 1 << 1, .2)
-		size = Math.pow(2, 6) + 1,
-		radius = size >> 1,
-		heightMap = createHeightMap(size, .7)
+		size = Math.pow(2, power) + 1,
+		radius = size >> 1 /*,
+		heightMap = createHeightMap(size, roughness)*/
 
-	drawHeightMap(heightMap, size)
+	//drawHeightMap(heightMap, size)
 
-	for (var i = 0, y = 0, z = -radius; z <= radius; ++z) {
+	for (var i = 0, y = 0, z = -radius, half = amplification / 2;
+			z <= radius; ++z) {
 		for (var x = -radius; x <= radius; ++x) {
-			/*vertices.push(x + (M.random() - .5) * .5)
-			vertices.push(y + heightMap[i++] * 8 - 4)
-			vertices.push(z + (M.random() - .5) * .5)*/
 			vertices.push(x)
-			//vertices.push(y + (M.random() - .5) * .5)
-			vertices.push(y + heightMap[i++] * 16 - 8)
+			vertices.push(y + (M.random() - .5) * .5)
+			//vertices.push(y + heightMap[i++] * amplification - half)
 			vertices.push(z)
 		}
 	}
@@ -809,15 +809,15 @@ function createEntities() {
 		cube = createCube()
 
 	entities.push({
-		model: createGround(),
+		model: createGround(6, .7, 8),
 		matrix: new FA(im),
 		color: colorGreen,
 	})
-	/*translate(m, im, 0, -2, 0)
+	/*translate(m, im, 0, -16, 0)
 	entities.push({
-		model: createGround(),
+		model: createGround(6, .6, 16),
 		matrix: new FA(m),
-		color: colorWhite,
+		color: sky,
 	})*/
 
 	translate(m, im, -4, 0, 0)
@@ -847,10 +847,10 @@ function createEntities() {
 		color: colorWhite,
 	}))
 
-	//rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
-	//translate(vm, vm, 0, -8, -10)
-	rotate(vm, vm, M.PI2 * .9, 1, 0, 0)
-	translate(vm, vm, 0, -60, -10)
+	rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
+	translate(vm, vm, 0, -8, -10)
+	/*rotate(vm, vm, M.PI2 * .7, 1, 0, 0)
+	translate(vm, vm, 0, -30, -10)*/
 
 	entitiesLength = entities.length
 }
@@ -890,19 +890,9 @@ function init() {
 		'far'])
 
 	gl.enable(gl.DEPTH_TEST)
-	//gl.disable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	gl.clearColor(sky[0], sky[1], sky[2], sky[3])
-
-	/*/gl.depthMask(true)
-	gl.disable(gl.DEPTH_TEST)
-	gl.enable(gl.BLEND)
-	//gl.blendFunc(gl.ONE, gl.ONE)
-	//gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
-	//gl.blendFunc(gl.ONE, gl.ZERO)
-	//gl.enable(gl.CULL_FACE);
-	//gl.cullFace(gl.FRONT);*/
 
 	W.onresize = resize
 	resize()
