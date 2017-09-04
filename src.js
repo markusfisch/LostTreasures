@@ -570,23 +570,32 @@ function createModel(vertices, indicies) {
 	return model
 }
 
-// stolen from http://www.playfuljs.com/realistic-terrain-in-130-lines/
+// from http://www.playfuljs.com/realistic-terrain-in-130-lines/
 function createHeightMap(size, roughness) {
 	var map = new FA(size * size),
 		max = size - 1
 	function offset(x, y) {
+		//return (size * (y % max) + (x % max)) | 0
 		return (size * y + x) | 0
 	}
 	function set(x, y, value) {
+		if (x == max || y == max) {
+			value = get(x % max, y % max)
+		}
 		map[offset(x, y)] = value
 	}
 	function get(x, y) {
-		return map[offset(x, y)]
+		return map[offset(x % max, y % max)]
 	}
-	set(0, 0, M.random())
+	/*set(0, 0, M.random())
 	set(max, 0, M.random())
 	set(max, max, M.random())
-	set(0, max, M.random())
+	set(0, max, M.random())*/
+	var v = M.random()
+	set(0, 0, v)
+	set(max, 0, v)
+	set(max, max, v)
+	set(0, max, v)
 	function square(x, y, step, offset) {
 		var average =
 			get(x - step, y - step) +
@@ -603,6 +612,24 @@ function createHeightMap(size, roughness) {
 		if (y + step < size) { a += get(x, y + step); ++i }
 		set(x, y, a / i + offset)
 	}
+	/*for (var step = max;;) {
+		var x, y, half = step >> 1,
+			scale = roughness * (step / max)
+		if (half < 1) {
+			break
+		}
+		for (y = half; y < max; y += step) {
+			for (x = half; x < max; x += step) {
+				square(x, y, half, M.random() * scale * 2 - scale)
+			}
+		}
+		for (y = 0; y <= max; y += half) {
+			for (x = (y + half) % step; x <= max; x += step) {
+				diamond(x, y, half, M.random() * scale * 2 - scale)
+			}
+		}
+		step = half
+	}*/
 	function divide(step) {
 		var x, y, half = step >> 1, scale = roughness * (step / max)
 		if (half < 1) {
@@ -624,6 +651,23 @@ function createHeightMap(size, roughness) {
 	return map
 }
 
+/*function drawHeightMap(heightMap, size) {
+	var c = D.getElementById("Heightmap"),
+		cx = c.getContext("2d"),
+		s = size << 2
+	c.width = s
+	c.height = s
+	c.style.width = s + 'px'
+	c.style.height = s + 'px'
+	for (var y = 0; y < size; ++y) {
+		for (var x = 0; x < size; ++x) {
+			var v = (heightMap[(y * size + x) | 0] * 128) | 0
+			cx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'
+			cx.fillRect(x << 2, y << 2, 4, 4)
+		}
+	}
+}*/
+
 function drawHeightMap(heightMap, size) {
 	var c = D.getElementById("Heightmap"),
 		cx = c.getContext("2d"),
@@ -636,7 +680,11 @@ function drawHeightMap(heightMap, size) {
 		for (var x = 0; x < size; ++x) {
 			var v = (heightMap[(y * size + x) | 0] * 128) | 0
 			cx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'
-			cx.fillRect(x << 3, y << 3, 8, 8)
+			var xx = x << 1, yy = y << 1, s = size << 1
+			cx.fillRect(xx, yy, 2, 2)
+			cx.fillRect(xx, yy + s, 2, 2)
+			cx.fillRect(xx + s, yy, 2, 2)
+			cx.fillRect(xx + s, yy + s, 2, 2)
 		}
 	}
 }
@@ -651,16 +699,16 @@ function createGround() {
 		radius = size >> 1,
 		heightMap = createHeightMap(size, .7)
 
-	//drawHeightMap(heightMap, size)
+	drawHeightMap(heightMap, size)
 
 	for (var i = 0, y = 0, z = -radius; z <= radius; ++z) {
 		for (var x = -radius; x <= radius; ++x) {
 			/*vertices.push(x + (M.random() - .5) * .5)
-			vertices.push(y + heightMap[i++] * 8.5)
+			vertices.push(y + heightMap[i++] * 8 - 4)
 			vertices.push(z + (M.random() - .5) * .5)*/
 			vertices.push(x)
 			//vertices.push(y + (M.random() - .5) * .5)
-			vertices.push(y + heightMap[i++] * 8 - 4)
+			vertices.push(y + heightMap[i++] * 16 - 8)
 			vertices.push(z)
 		}
 	}
@@ -799,8 +847,10 @@ function createEntities() {
 		color: colorWhite,
 	}))
 
-	rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
-	translate(vm, vm, 0, -8, -10)
+	//rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
+	//translate(vm, vm, 0, -8, -10)
+	rotate(vm, vm, M.PI2 * .9, 1, 0, 0)
+	translate(vm, vm, 0, -60, -10)
 
 	entitiesLength = entities.length
 }
