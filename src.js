@@ -12,6 +12,7 @@ var M = Math,
 		0, 0, 0, 1]),
 	pm,
 	vm = new FA(im),
+	nm = new FA(9),
 	cm = new FA(16),
 	m = new FA(16),
 	far = 1000,
@@ -221,11 +222,25 @@ function translate(out, a, x, y, z) {
 	}
 }
 
+var white = [1, 1, 1, 1]
 function drawModel(mm, model, uniforms, color) {
 	multiply(m, vm, mm)
 	multiply(m, pm, m)
 
+	nm[0] = mm[0]
+	nm[1] = mm[4]
+	nm[2] = mm[8]
+
+	nm[3] = mm[1]
+	nm[4] = mm[5]
+	nm[5] = mm[9]
+
+	nm[6] = mm[2]
+	nm[7] = mm[6]
+	nm[8] = mm[10]
+
 	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, m)
+	gl.uniformMatrix3fv(uniforms.nm, gl.FALSE, nm)
 	gl.uniformMatrix4fv(uniforms.mm, gl.FALSE, mm)
 	gl.uniform4fv(uniforms.color, color)
 
@@ -234,6 +249,13 @@ function drawModel(mm, model, uniforms, color) {
 		model.numberOfVertices,
 		gl.UNSIGNED_SHORT,
 		0)
+
+	/*gl.uniform4fv(uniforms.color, white)
+	gl.drawElements(
+		gl.LINES,
+		model.numberOfVertices,
+		gl.UNSIGNED_SHORT,
+		0)*/
 }
 
 function bindModel(attribs, model) {
@@ -262,7 +284,19 @@ function draw() {
 			model = e.model
 			bindModel(attribs, model)
 		}
+		/*if (i === 0) {
+			gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+			gl.enable(gl.BLEND)
+			gl.disable(gl.DEPTH_TEST)
+		} else {
+			gl.blendFunc(gl.ONE, gl.ZERO)
+			gl.disable(gl.BLEND)
+			gl.enable(gl.DEPTH_TEST)
+		}*/
 		drawModel(e.matrix, model, uniforms, e.color)
+		if (e.update) {
+			e.update()
+		}
 	}
 }
 
@@ -539,66 +573,95 @@ function createModel(vertices, indicies) {
 // stolen from http://www.playfuljs.com/realistic-terrain-in-130-lines/
 function createHeightMap(size, roughness) {
 	var map = new FA(size * size),
-		last = size - 1
+		max = size - 1
+	function offset(x, y) {
+		return (size * y + x) | 0
+	}
 	function set(x, y, value) {
-		map[size * (y | 0) + (x | 0)] = value
+		map[offset(x, y)] = value
 	}
 	function get(x, y) {
-		if (x < 0 || x > last || y < 0 || y > last) return 0;
-		return map[size * (y | 0) + (x | 0)]
+		return map[offset(x, y)]
 	}
 	set(0, 0, M.random())
-	set(last, 0, M.random())
-	set(last, last, M.random())
-	set(0, last, M.random())
+	set(max, 0, M.random())
+	set(max, max, M.random())
+	set(0, max, M.random())
 	function square(x, y, step, offset) {
-		var a =
+		var average =
 			get(x - step, y - step) +
 			get(x + step, y - step) +
 			get(x + step, y + step) +
 			get(x - step, y + step)
-		set(x, y, a / 4 + offset)
+		set(x, y, average / 4 + offset)
 	}
 	function diamond(x, y, step, offset) {
-		var a =
-			get(x, y - step) +
-			get(x + step, y) +
-			get(x, y + step) +
-			get(x - step, y)
-		set(x, y, a / 4 + offset)
+		var a = 0, i = 0
+		if (x - step > -1) { a += get(x - step, y); ++i }
+		if (y - step > -1) { a += get(x, y - step); ++i }
+		if (x + step < size) { a += get(x + step, y); ++i }
+		if (y + step < size) { a += get(x, y + step); ++i }
+		set(x, y, a / i + offset)
 	}
 	function divide(step) {
-		var x, y, half = (step / 2) | 0
-		var scale = roughness * step
-		if (half < 1) return
-		for (y = half; y < last; y += step) {
-			for (x = half; x < last; x += step) {
+		var x, y, half = step >> 1, scale = roughness * (step / max)
+		if (half < 1) {
+			return
+		}
+		for (y = half; y < max; y += step) {
+			for (x = half; x < max; x += step) {
 				square(x, y, half, M.random() * scale * 2 - scale)
 			}
 		}
-		for (y = 0; y <= last; y += half) {
-			for (x = (y + half) % size; x <= last; x += step) {
+		for (y = 0; y <= max; y += half) {
+			for (x = (y + half) % step; x <= max; x += step) {
 				diamond(x, y, half, M.random() * scale * 2 - scale)
 			}
 		}
 		divide(half)
 	}
-	divide(last)
+	divide(max)
 	return map
+}
+
+function drawHeightMap(heightMap, size) {
+	var c = D.getElementById("Heightmap"),
+		cx = c.getContext("2d"),
+		s = size << 2
+	c.width = s
+	c.height = s
+	c.style.width = s + 'px'
+	c.style.height = s + 'px'
+	for (var y = 0; y < size; ++y) {
+		for (var x = 0; x < size; ++x) {
+			var v = (heightMap[(y * size + x) | 0] * 128) | 0
+			cx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'
+			cx.fillRect(x << 3, y << 3, 8, 8)
+		}
+	}
 }
 
 function createGround() {
 	var vertices = [],
 		indicies = [],
-		radius = 11,
-		vpl = radius * 2 + 1,
-		heightMap = createHeightMap(vpl, .2)
+		//radius = 11,
+		//size = radius * 2 + 1,
+		//heightMap = createHeightMap(size >> 1 << 1, .2)
+		size = Math.pow(2, 6) + 1,
+		radius = size >> 1,
+		heightMap = createHeightMap(size, .7)
+
+	//drawHeightMap(heightMap, size)
 
 	for (var i = 0, y = 0, z = -radius; z <= radius; ++z) {
 		for (var x = -radius; x <= radius; ++x) {
-			vertices.push(x + (M.random() - .5) * .5)
-			vertices.push(y + heightMap[i++] * .5)
-			vertices.push(z + (M.random() - .5) * .5)
+			/*vertices.push(x + (M.random() - .5) * .5)
+			vertices.push(y + heightMap[i++] * 8.5)
+			vertices.push(z + (M.random() - .5) * .5)*/
+			vertices.push(x)
+			//vertices.push(y + (M.random() - .5) * .5)
+			vertices.push(y + heightMap[i++] * 8 - 4)
+			vertices.push(z)
 		}
 	}
 
@@ -606,12 +669,12 @@ function createGround() {
 		for (var x = -radius; x < radius; ++x) {
 			// counter-clockwise order
 			indicies.push(i)
-			indicies.push(i + vpl)
+			indicies.push(i + size)
 			indicies.push(i + 1)
 
 			indicies.push(i + 1)
-			indicies.push(i + vpl)
-			indicies.push(i + vpl + 1)
+			indicies.push(i + size)
+			indicies.push(i + size + 1)
 			++i
 		}
 		++i
@@ -702,26 +765,32 @@ function createEntities() {
 		matrix: new FA(im),
 		color: colorGreen,
 	})
-	translate(m, im, 0, -2, 0)
+	/*translate(m, im, 0, -2, 0)
 	entities.push({
 		model: createGround(),
 		matrix: new FA(m),
 		color: colorWhite,
-	})
+	})*/
 
 	translate(m, im, -4, 0, 0)
-	rotate(m, m, M.PI2 * .5, 0, 1, 0)
+	rotate(m, m, M.PI2 * .4, 0, 1, 0)
 	entities.push({
 		model: cube,
 		matrix: new FA(m),
-		color: colorWhite,
+		color: colorGreen,
+		update: function() {
+			rotate(this.matrix, this.matrix, .001, 0, 1, 0)
+		},
 	})
 	translate(m, im, 4, 0, 0)
-	rotate(m, m, M.PI2 * .5, 0, 1, 0)
+	rotate(m, m, M.PI2 * .6, 0, 1, 0)
 	entities.push({
 		model: cube,
 		matrix: new FA(m),
 		color: colorWhite,
+		update: function() {
+			rotate(this.matrix, this.matrix, .001, 1, 0, 0)
+		},
 	})
 
 	entities.push((player = {
@@ -762,6 +831,7 @@ function init() {
 		'normal'])
 	cacheUniformLocations(program, [
 		'mvp',
+		'nm',
 		'mm',
 		'light',
 		'color',
@@ -770,9 +840,19 @@ function init() {
 		'far'])
 
 	gl.enable(gl.DEPTH_TEST)
+	//gl.disable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	gl.clearColor(sky[0], sky[1], sky[2], sky[3])
+
+	/*/gl.depthMask(true)
+	gl.disable(gl.DEPTH_TEST)
+	gl.enable(gl.BLEND)
+	//gl.blendFunc(gl.ONE, gl.ONE)
+	//gl.blendFunc(gl.SRC_ALPHA, gl.ONE)
+	//gl.blendFunc(gl.ONE, gl.ZERO)
+	//gl.enable(gl.CULL_FACE);
+	//gl.cullFace(gl.FRONT);*/
 
 	W.onresize = resize
 	resize()
