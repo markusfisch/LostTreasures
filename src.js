@@ -15,18 +15,22 @@ var M = Math,
 	nm = new FA(16),
 	cm = new FA(16),
 	m = new FA(16),
-	far = 100,//30,
+	//far = 100,
+	far = 50,
 	skyColor = [.43, .73, .96, 1],
 	lightDirection = [.5, .5, 1],
 	program,
+	waterProgram,
 	entitiesLength = 0,
 	entities = [],
+	water,
 	player,
 	width,
 	height,
 	now,
 	factor,
 	last,
+	first,
 	pointersLength,
 	pointersX = [],
 	pointersY = [],
@@ -277,13 +281,6 @@ function drawModel(mm, model, uniforms, color) {
 		model.numberOfVertices,
 		gl.UNSIGNED_SHORT,
 		0)
-
-	/*gl.drawElementsInstanced(
-		gl.TRIANGLES,
-		model.numberOfVertices,
-		gl.UNSIGNED_SHORT,
-		0,
-		9)*/
 }
 
 function bindModel(attribs, model) {
@@ -292,6 +289,22 @@ function bindModel(attribs, model) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.normals)
 	gl.vertexAttribPointer(attribs.normal, 3, gl.FLOAT, gl.FALSE, 0, 0)
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
+}
+
+function drawWater() {
+	gl.useProgram(waterProgram)
+
+	var uniforms = waterProgram.uniforms,
+		attribs = waterProgram.attribs
+
+	gl.uniform3fv(uniforms.light, lightDirection)
+	gl.uniform4fv(uniforms.sky, skyColor)
+	gl.uniform1f(uniforms.far, far)
+	gl.uniform1f(uniforms.time, (now - first) / 500)
+
+	var model = water.model
+	bindModel(attribs, model)
+	drawModel(water.matrix, model, uniforms, water.color)
 }
 
 function draw() {
@@ -316,6 +329,8 @@ function draw() {
 			e.update()
 		}
 	}
+
+	drawWater()
 }
 
 function move(x, y, z) {
@@ -646,20 +661,30 @@ function createHeightMap(size, roughness) {
 	return map
 }
 
-function createGround(power, roughness, amplification) {
+function createMap(power, roughness, amplification) {
 	var vertices = [],
 		indicies = [],
 		size = Math.pow(2, power) + 1,
-		radius = size >> 1 /*,
-		heightMap = createHeightMap(size, roughness)*/
+		radius = size >> 1
 
-	for (var i = 0, y = 0, z = -radius, half = amplification / 2;
-			z <= radius; ++z) {
-		for (var x = -radius; x <= radius; ++x) {
-			vertices.push(x)
-			vertices.push(y + (M.random() - .5) * .5)
-			//vertices.push(y + heightMap[i++] * amplification - half)
-			vertices.push(z)
+	if (roughness > 0) {
+		var heightMap = createHeightMap(size, roughness)
+		amplification = amplification || 8
+		for (var i = 0, y = 0, z = -radius, half = amplification / 2;
+				z <= radius; ++z) {
+			for (var x = -radius; x <= radius; ++x) {
+				vertices.push(x)
+				vertices.push(y + heightMap[i++] * amplification - half)
+				vertices.push(z)
+			}
+		}
+	} else {
+		for (var i = 0, y = 0, z = -radius; z <= radius; ++z) {
+			for (var x = -radius; x <= radius; ++x) {
+				vertices.push(x)
+				vertices.push(y + (M.random() - .5) * .5)
+				vertices.push(z)
+			}
 		}
 	}
 
@@ -753,36 +778,28 @@ function createTriangle() {
 
 function createEntities() {
 	var colorWhite = [1, 1, 1, 1],
-		colorGreen = [0, 1, 0, .3],
-		colorGround = [.96, .94, .89, 1],
+		colorWater = [.4, .7, .8, .3],
+		colorGround = [.3, .2, .1, 1],
 		tri = createTriangle(),
 		plane = createPlane(),
 		cube = createCube()
 
-	entities.push({
-		model: createGround(6, .7, 8),
+	water = {
+		model: createMap(6),//, .7, 8),
 		matrix: new FA(im),
-		color: colorGreen,
-	})
-	/*translate(m, im, 0, -16, 0)
+		color: colorWater,
+	}
+
+	translate(m, im, 0, -16, 0)
 	entities.push({
-		model: createGround(6, .6, 16),
+		model: createMap(6, .6, 16),
 		matrix: new FA(m),
 		color: colorGround,
-	})*/
-
-	translate(m, im, -4, 0, 0)
-	rotate(m, m, M.PI2 * .4, 0, 1, 0)
-	entities.push({
-		model: cube,
-		matrix: new FA(m),
-		color: colorGreen,
-		update: function() {
-			rotate(this.matrix, this.matrix, .001, 0, 1, 0)
-		},
 	})
+
 	translate(m, im, 4, 0, 0)
 	rotate(m, m, M.PI2 * .6, 0, 1, 0)
+	scale(m, m, .5, .5, .5)
 	entities.push({
 		model: cube,
 		matrix: new FA(m),
@@ -798,10 +815,10 @@ function createEntities() {
 		color: colorWhite,
 	}))
 
-	rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
-	translate(vm, vm, 0, -8, -10)
-	/*rotate(vm, vm, M.PI2 * .7, 1, 0, 0)
-	translate(vm, vm, 0, -30, -10)*/
+	/*rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
+	translate(vm, vm, 0, -8, -10)*/
+	rotate(vm, vm, M.PI2 * .7, 1, 0, 0)
+	translate(vm, vm, 0, -30, -10)
 
 	entitiesLength = entities.length
 }
@@ -819,21 +836,36 @@ function getContext() {
 }
 
 function init() {
-	if (!(gl = getContext()) || !(program = buildProgram(
-			D.getElementById('VertexShader').textContent,
-			D.getElementById('FragmentShader').textContent))) {
+	gl = getContext()
+	if (!gl) {
 		alert('WebGL not available')
+		return
+	}
+	if (!(program = buildProgram(
+			D.getElementById('VertexShader').textContent,
+			D.getElementById('FragmentShader').textContent)) ||
+		!(waterProgram = buildProgram(
+			D.getElementById('WaterVertexShader').textContent,
+			D.getElementById('FragmentShader').textContent))) {
+		alert('GLSL did not compile')
 		return
 	}
 
 	createEntities()
-	cacheAttribLocations(program, [
-		'vertex',
-		'normal'])
+	cacheAttribLocations(program, ['vertex', 'normal'])
 	cacheUniformLocations(program, [
 		'mvp',
 		'nm',
 		'light',
+		'color',
+		'sky',
+		'far'])
+	cacheAttribLocations(waterProgram, ['vertex', 'normal'])
+	cacheUniformLocations(waterProgram, [
+		'mvp',
+		'nm',
+		'light',
+		'time',
 		'color',
 		'sky',
 		'far'])
@@ -863,6 +895,7 @@ function init() {
 	}
 
 	last = Date.now() - 16
+	first = last
 	run()
 }
 
