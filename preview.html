@@ -24,7 +24,6 @@ attribute vec3 vertex;
 attribute vec3 normal;
 
 uniform mat4 mvp;
-uniform mat4 mm;
 uniform mat4 nm;
 uniform vec3 light;
 
@@ -34,21 +33,7 @@ varying mediump float z;
 void main() {
 	gl_Position = mvp * vec4(vertex, 1.);
 	z = gl_Position.z;
-	/*intensity = max(.0, dot(
-		normalize(mat3(
-			// transpose matrix
-			mm[0][0], mm[0][1], mm[0][2],
-			mm[1][0], mm[1][1], mm[1][2],
-			mm[2][0], mm[2][1], mm[2][2]) * normal),
-		normalize(light)));*/
-	vec3 v = normalize(mat3(nm) * normal);
-	intensity = max(0., dot(v, light));
-	/*vec3 v = normalize((nm * vec4(normal, 1.0)).xyz);
-	intensity = max(0., dot(v, light));*/
-	// https://developer.mozilla.org/de/docs/Web/API/WebGL_API/Tutorial/Beleuchtung_in_WebGL
-	// says we should use 1.0 but https://webglfundamentals.org/webgl/lessons/webgl-3d-lighting-directional.html says we should use 0.0
-	/*vec4 v = nm * vec4(normal, 1.0);
-	intensity = max(0., dot(normalize(v.xyz), normalize(light)));*/
+	intensity = max(0., dot(normalize(mat3(nm) * normal), light));
 }
 </script>
 <script id="FragmentShader" type="x-shader/x-fragment">
@@ -58,7 +43,6 @@ precision highp float;
 precision mediump float;
 #endif
 
-uniform float brightness;
 uniform float far;
 uniform vec4 sky;
 uniform vec4 color;
@@ -69,8 +53,7 @@ varying mediump float z;
 void main() {
 	float f = z / far;
 	gl_FragColor = vec4(
-		(1. - f) * color.rgb * (.3 + intensity * .7) * brightness +
-			f * sky.rgb,
+		(1. - f) * color.rgb * (.5 + intensity * .5) + f * sky.rgb,
 		color.a);
 }
 </script>

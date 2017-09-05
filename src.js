@@ -15,10 +15,9 @@ var M = Math,
 	nm = new FA(16),
 	cm = new FA(16),
 	m = new FA(16),
-	far = 1000,
-	sky = [.2, .5, .8, 1],
-	light = [.5, .5, 1],
-	brightness = 1,
+	far = 100,//30,
+	skyColor = [.43, .73, .96, 1],
+	lightDirection = [.5, .5, 1],
 	program,
 	entitiesLength = 0,
 	entities = [],
@@ -271,7 +270,6 @@ function drawModel(mm, model, uniforms, color) {
 
 	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, m)
 	gl.uniformMatrix4fv(uniforms.nm, gl.FALSE, nm)
-	gl.uniformMatrix4fv(uniforms.mm, gl.FALSE, mm)
 	gl.uniform4fv(uniforms.color, color)
 
 	gl.drawElements(
@@ -286,13 +284,6 @@ function drawModel(mm, model, uniforms, color) {
 		gl.UNSIGNED_SHORT,
 		0,
 		9)*/
-
-	/*gl.uniform4fv(uniforms.color, white)
-	gl.drawElements(
-		gl.LINES,
-		model.numberOfVertices,
-		gl.UNSIGNED_SHORT,
-		0)*/
 }
 
 function bindModel(attribs, model) {
@@ -310,9 +301,8 @@ function draw() {
 	var uniforms = program.uniforms,
 		attribs = program.attribs
 
-	gl.uniform3fv(uniforms.light, light)
-	gl.uniform4fv(uniforms.sky, sky)
-	gl.uniform1f(uniforms.brightness, brightness)
+	gl.uniform3fv(uniforms.light, lightDirection)
+	gl.uniform4fv(uniforms.sky, skyColor)
 	gl.uniform1f(uniforms.far, far)
 
 	for (var model, i = entitiesLength; i--;) {
@@ -656,52 +646,12 @@ function createHeightMap(size, roughness) {
 	return map
 }
 
-function drawHeightMap(heightMap, size) {
-	var c = D.getElementById("Heightmap"),
-		cx = c.getContext("2d"),
-		s = size << 2
-	c.width = s
-	c.height = s
-	c.style.width = s + 'px'
-	c.style.height = s + 'px'
-	for (var y = 0; y < size; ++y) {
-		for (var x = 0; x < size; ++x) {
-			var v = (heightMap[(y * size + x) | 0] * 128) | 0
-			cx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'
-			cx.fillRect(x << 2, y << 2, 4, 4)
-		}
-	}
-}
-
-function drawHeightMap4Times(heightMap, size) {
-	var c = D.getElementById("Heightmap"),
-		cx = c.getContext("2d"),
-		s = size << 2
-	c.width = s
-	c.height = s
-	c.style.width = s + 'px'
-	c.style.height = s + 'px'
-	for (var y = 0; y < size; ++y) {
-		for (var x = 0; x < size; ++x) {
-			var v = (heightMap[(y * size + x) | 0] * 128) | 0
-			cx.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'
-			var xx = x << 1, yy = y << 1, s = size << 1
-			cx.fillRect(xx, yy, 2, 2)
-			cx.fillRect(xx, yy + s, 2, 2)
-			cx.fillRect(xx + s, yy, 2, 2)
-			cx.fillRect(xx + s, yy + s, 2, 2)
-		}
-	}
-}
-
 function createGround(power, roughness, amplification) {
 	var vertices = [],
 		indicies = [],
 		size = Math.pow(2, power) + 1,
 		radius = size >> 1 /*,
 		heightMap = createHeightMap(size, roughness)*/
-
-	//drawHeightMap(heightMap, size)
 
 	for (var i = 0, y = 0, z = -radius, half = amplification / 2;
 			z <= radius; ++z) {
@@ -804,6 +754,7 @@ function createTriangle() {
 function createEntities() {
 	var colorWhite = [1, 1, 1, 1],
 		colorGreen = [0, 1, 0, .3],
+		colorGround = [.96, .94, .89, 1],
 		tri = createTriangle(),
 		plane = createPlane(),
 		cube = createCube()
@@ -817,7 +768,7 @@ function createEntities() {
 	entities.push({
 		model: createGround(6, .6, 16),
 		matrix: new FA(m),
-		color: sky,
+		color: colorGround,
 	})*/
 
 	translate(m, im, -4, 0, 0)
@@ -882,17 +833,15 @@ function init() {
 	cacheUniformLocations(program, [
 		'mvp',
 		'nm',
-		'mm',
 		'light',
 		'color',
 		'sky',
-		'brightness',
 		'far'])
 
 	gl.enable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	gl.clearColor(sky[0], sky[1], sky[2], sky[3])
+	gl.clearColor(skyColor[0], skyColor[1], skyColor[2], skyColor[3])
 
 	W.onresize = resize
 	resize()
