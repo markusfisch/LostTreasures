@@ -20,10 +20,11 @@ var M = Math,
 	skyColor = [.43, .73, .96, 1],
 	lightDirection = [.5, .5, 1],
 	program,
-	waterProgram,
+	seaProgram,
 	entitiesLength = 0,
 	entities = [],
-	water,
+	sea,
+	ground,
 	player,
 	width,
 	height,
@@ -291,20 +292,26 @@ function bindModel(attribs, model) {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
 }
 
-function drawWater() {
-	gl.useProgram(waterProgram)
+function drawSea() {
+	gl.useProgram(seaProgram)
 
-	var uniforms = waterProgram.uniforms,
-		attribs = waterProgram.attribs
+	var uniforms = seaProgram.uniforms,
+		attribs = seaProgram.attribs
 
 	gl.uniform3fv(uniforms.light, lightDirection)
 	gl.uniform4fv(uniforms.sky, skyColor)
 	gl.uniform1f(uniforms.far, far)
 	gl.uniform1f(uniforms.time, (now - first) / 500)
 
-	var model = water.model
+	var model = sea.model
 	bindModel(attribs, model)
-	drawModel(water.matrix, model, uniforms, water.color)
+	drawModel(sea.matrix, model, uniforms, sea.color)
+}
+
+function drawGround(uniforms, attribs) {
+	var model = ground.model
+	bindModel(attribs, model)
+	drawModel(ground.matrix, model, uniforms, ground.color)
 }
 
 function draw() {
@@ -318,6 +325,8 @@ function draw() {
 	gl.uniform4fv(uniforms.sky, skyColor)
 	gl.uniform1f(uniforms.far, far)
 
+	drawGround(uniforms, attribs)
+
 	for (var model, i = entitiesLength; i--;) {
 		var e = entities[i]
 		if (model != e.model) {
@@ -330,7 +339,8 @@ function draw() {
 		}
 	}
 
-	drawWater()
+	// draw transparent objects over opaque ones and from back to front
+	drawSea()
 }
 
 function move(x, y, z) {
@@ -348,7 +358,7 @@ function input() {
 		rotate(vm, im, M.PI2 * .7, 1, 0, 0)
 		translate(vm, vm, 0, -30, -10)
 	} else if (keysDown[50]) {
-		rotate(vm, im, M.PI2 * .5, 1, 0, 0)
+		rotate(vm, im, M.PI2 * .4, 1, 0, 0)
 		translate(vm, vm, 0, -8, -10)
 	}
 
@@ -776,55 +786,33 @@ function createPlane() {
 		2, 3, 1])
 }
 
-function createTriangle() {
-	return createModel([
-		0, 1, 0,
-		-1, -1, 0,
-		1, -1, 0],[
-		0, 1, 2])
-}
-
-function createEntities() {
+function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
-		colorWater = [.4, .7, .8, .3],
-		colorGround = [.3, .2, .1, 1],
-		tri = createTriangle(),
-		plane = createPlane(),
+		//plane = createPlane(),
 		cube = createCube()
 
-	water = {
-		model: createMap(6),//, .7, 8),
+	sea = {
+		model: createMap(6),
 		matrix: new FA(im),
-		color: colorWater,
+		color: [.4, .7, .8, .3],
 	}
 
 	translate(m, im, 0, -16, 0)
-	entities.push({
+	ground = {
 		model: createMap(6, .6, 16),
 		matrix: new FA(m),
-		color: colorGround,
-	})
-
-	translate(m, im, 4, 0, 0)
-	rotate(m, m, M.PI2 * .6, 0, 1, 0)
-	scale(m, m, .5, .5, .5)
-	entities.push({
-		model: cube,
-		matrix: new FA(m),
-		color: colorWhite,
-		update: function() {
-			rotate(this.matrix, this.matrix, .001, 1, 0, 0)
-		},
-	})
+		color: [.3, .2, .1, 1],
+	}
 
 	entities.push((player = {
 		model: cube,
 		matrix: new FA(im),
 		color: colorWhite,
+		update: function() {
+			rotate(this.matrix, this.matrix, .001, 1, 1, 1)
+		},
 	}))
 
-	/*rotate(vm, vm, M.PI2 * .5, 1, 0, 0)
-	translate(vm, vm, 0, -8, -10)*/
 	rotate(vm, vm, M.PI2 * .7, 1, 0, 0)
 	translate(vm, vm, 0, -30, -10)
 
@@ -844,22 +832,22 @@ function getContext() {
 }
 
 function init() {
-	gl = getContext()
-	if (!gl) {
+	if (!(gl = getContext())) {
 		alert('WebGL not available')
 		return
 	}
+	var fs = D.getElementById('FragmentShader').textContent
 	if (!(program = buildProgram(
 			D.getElementById('VertexShader').textContent,
-			D.getElementById('FragmentShader').textContent)) ||
-		!(waterProgram = buildProgram(
-			D.getElementById('WaterVertexShader').textContent,
-			D.getElementById('FragmentShader').textContent))) {
+			fs)) ||
+		!(seaProgram = buildProgram(
+			D.getElementById('SeaVertexShader').textContent,
+			fs))) {
 		alert('GLSL did not compile')
 		return
 	}
 
-	createEntities()
+	createObjects()
 	cacheAttribLocations(program, ['vertex', 'normal'])
 	cacheUniformLocations(program, [
 		'mvp',
@@ -868,8 +856,8 @@ function init() {
 		'color',
 		'sky',
 		'far'])
-	cacheAttribLocations(waterProgram, ['vertex', 'normal'])
-	cacheUniformLocations(waterProgram, [
+	cacheAttribLocations(seaProgram, ['vertex', 'normal'])
+	cacheUniformLocations(seaProgram, [
 		'mvp',
 		'nm',
 		'light',
