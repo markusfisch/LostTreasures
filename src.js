@@ -344,6 +344,14 @@ function turn(rad, x, y, z) {
 }
 
 function input() {
+	if (keysDown[49]) {
+		rotate(vm, im, M.PI2 * .7, 1, 0, 0)
+		translate(vm, vm, 0, -30, -10)
+	} else if (keysDown[50]) {
+		rotate(vm, im, M.PI2 * .5, 1, 0, 0)
+		translate(vm, vm, 0, -8, -10)
+	}
+
 	var s = .05
 	if (keysDown[16]) {
 		if (keysDown[87]) {
