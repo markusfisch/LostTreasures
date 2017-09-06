@@ -5,7 +5,7 @@ test.zip: $(BUILD)
 	@echo "$$(( 10000000 / 13312 * $$(stat -f '%z' $@) / 100000 ))%"
 	@rm -f $@
 
-$(BUILD): src.js vs.glsl fs.glsl
+$(BUILD): src.js preview.html
 	bash index.html.sh > $(BUILD)
 
 clean:

@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-squeeze() {
+extract() {
+	local ECHO=0
 	while read -r
 	do
-		# skip comments
-		REPLY=${REPLY%%//*}
-		# skip indent
-		REPLY=${REPLY##*$'\t'}
-		# skip empty lines
-		[ "$REPLY" ] || continue
-		echo "$REPLY"
+		[[ $REPLY == *$1* ]] && {
+			ECHO=1
+		}
+		(( ECHO )) && {
+			# skip comments
+			REPLY=${REPLY%%//*}
+			# skip indent
+			REPLY=${REPLY##*$'\t'}
+			# skip empty lines
+			[ "$REPLY" ] || continue
+			echo "$REPLY"
+		}
+		[[ $REPLY == \</script* ]] && {
+			ECHO=0
+		}
 	done
 }
 cat << EOF
@@ -17,7 +26,7 @@ cat << EOF
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width"/>
-<title>js13k2016</title>
+<title>js13k2017</title>
 <style>
 html, body {
 margin: 0; padding: 0;
@@ -32,12 +41,7 @@ height: 100%;
 </head>
 <body>
 <canvas id="Canvas">Sorry, this browser cannot render this content.</canvas>
-<script id="VertexShader" type="x-shader/x-vertex">
-$(squeeze < vs.glsl)
-</script>
-<script id="FragmentShader" type="x-shader/x-fragment">
-$(squeeze < fs.glsl)
-</script>
+$(extract 'x-shader' < preview.html)
 <script>
 $(closurecompiler < src.js)
 </script>
