@@ -1,14 +1,15 @@
 BUILD = index.html
-ARCHIVE = archive.zip
 
-$(ARCHIVE): $(BUILD)
+test.zip: $(BUILD)
 	zip $@ $^
+	@echo "$$(( 10000000 / 13312 * $$(stat -f '%z' $@) / 100000 ))%"
+	@rm -f $@
 
 $(BUILD): src.js vs.glsl fs.glsl
 	bash index.html.sh > $(BUILD)
 
 clean:
-	rm -f $(ARCHIVE) $(BUILD)
+	rm -f $(BUILD)
 
-live: $(BUILD)
+up: $(BUILD)
 	scp $(BUILD) hhsw.de@ssh.strato.de:sites/proto/js13k2017/
