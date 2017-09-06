@@ -6,7 +6,7 @@ test.zip: $(BUILD)
 	@rm -f $@
 
 $(BUILD): src.js preview.html
-	bash index.html.sh > $(BUILD)
+	bash squeeze.sh > $(BUILD)
 
 clean:
 	rm -f $(BUILD)
