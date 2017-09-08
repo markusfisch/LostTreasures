@@ -361,7 +361,12 @@ function input() {
 		far = 1000
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2 * .75, 1, 0, 0)
-		translate(vm, vm, 0, -75, -35)
+		translate(vm, vm, 0, -200, -100)
+	} else if (keysDown[52]) {
+		far = 1000
+		setProjectionMatrix()
+		rotate(vm, im, M.PI2, 1, 0, 0)
+		translate(vm, vm, 0, -300, 0)
 	}
 
 	var s = .05
@@ -687,21 +692,30 @@ function createMap(power, roughness, amplification) {
 	var vertices = [],
 		indicies = [],
 		size = Math.pow(2, power) + 1,
-		radius = size >> 1
+		mapSize = 2 * size - 1
 
 	if (roughness) {
 		var heightMap = createHeightMap(size, roughness)
-		for (var i = 0, half = amplification / 2,
-				z = -radius; z <= radius; ++z) {
-			for (var x = -radius; x <= radius; ++x) {
+		for (var i = 0, base = 1, half = amplification / 2,
+				z = 0; z < size; ++z) {
+			for (var x = 0; x < size; ++x) {
 				vertices.push(x)
 				vertices.push(heightMap[i++] * amplification - half)
 				vertices.push(z)
 			}
+			// copy terrain into second column to form a 2x2 map
+			for (var x = 1, last = size - 1; x < size; ++x) {
+				vertices.push(last + x)
+				vertices.push(vertices[base])
+				vertices.push(z)
+				base += 3
+			}
+			base += size * 3
 		}
 	} else {
-		for (var i = 1, z = -radius; z < radius; ++z, i += size * 3) {
-			for (var x = -radius; x < radius; ++x) {
+		for (var i = 1, base = 1, untilLast = size - 1,
+				z = 0; z < size; ++z, i += mapSize * 3) {
+			for (var x = 0; x < untilLast; ++x) {
 				vertices.push(x)
 				vertices.push(M.random() *.5 - .5)
 				vertices.push(z)
@@ -710,32 +724,50 @@ function createMap(power, roughness, amplification) {
 			vertices.push(x)
 			vertices.push(vertices[i])
 			vertices.push(z)
+			// copy terrain into second column to form a 2x2 map
+			for (var x = 1, last = size - 1; x < size; ++x) {
+				vertices.push(last + x)
+				vertices.push(vertices[base])
+				vertices.push(z)
+				base += 3
+			}
+			base += size * 3
 		}
-		// and the first row completely
-		for (var i = 1, x = -radius; x <= radius; ++x, i += 3) {
+		// copy first row to make it seamless
+		for (var i = 1, x = 0; x < mapSize; ++x, i += 3) {
 			vertices.push(x)
 			vertices.push(vertices[i])
 			vertices.push(z)
 		}
 	}
 
-	for (var i = 0, z = -radius; z < radius; ++z) {
-		for (var x = -radius; x < radius; ++x) {
+	// and copy all of the above for the second row
+	for (var base = (mapSize * 3) + 1, z = 1; z < size; ++z) {
+		for (var x = 0; x < mapSize; ++x) {
+			vertices.push(x)
+			vertices.push(vertices[base])
+			vertices.push(size + z)
+			base += 3
+		}
+	}
+
+	for (var i = 0, z = 1; z < mapSize; ++z) {
+		for (var x = 1; x < mapSize; ++x) {
 			// counter-clockwise order
 			indicies.push(i)
-			indicies.push(i + size)
+			indicies.push(i + mapSize)
 			indicies.push(i + 1)
 
 			indicies.push(i + 1)
-			indicies.push(i + size)
-			indicies.push(i + size + 1)
+			indicies.push(i + mapSize)
+			indicies.push(i + mapSize + 1)
 			++i
 		}
 		++i
 	}
 
 	var model = createModel(vertices, indicies)
-	model.size = radius << 1
+	model.size = mapSize - 1
 	return model
 }
 
@@ -795,16 +827,20 @@ function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
+	var map = createMap(6)
+	translate(m, im, -map.size >> 1, 0, -map.size >> 1)
 	sea = {
-		model: createMap(6),
-		matrix: new FA(im),
+		model: map,
+		matrix: new FA(m),
 		color: [.4, .7, .8, .3],
 	}
 
+	var map = createMap(4, .6, 16)
 	translate(m, im, 0, -16, 0)
-	scale(m, m, 5, 1, 5)
+	scale(m, m, 7, 1, 7)
+	translate(m, m, -map.size >> 1, 0, -map.size >> 1)
 	ground = {
-		model: createMap(4, .6, 16),
+		model: map,
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1],
 	}
