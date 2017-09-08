@@ -13,9 +13,8 @@ var M = Math,
 	pm,
 	vm = new FA(im),
 	nm = new FA(16),
-	cm = new FA(16),
+	mvp = new FA(im),
 	m = new FA(16),
-	//far = 100,
 	far = 50,
 	skyColor = [.43, .73, .96, 1],
 	lightDirection = [.5, .5, 1],
@@ -265,23 +264,19 @@ function transpose(out, a) {
 }
 
 function drawModel(mm, model, uniforms, color) {
-	multiply(m, vm, mm)
-	multiply(m, pm, m)
+	multiply(mvp, vm, mm)
+	multiply(mvp, pm, mvp)
 
 	// we need to invert and transpose the model matrix so the
 	// normals are scaled correctly
 	invert(nm, mm)
 	transpose(nm, nm)
 
-	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, m)
+	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, mvp)
 	gl.uniformMatrix4fv(uniforms.nm, gl.FALSE, nm)
 	gl.uniform4fv(uniforms.color, color)
 
-	gl.drawElements(
-		gl.TRIANGLES,
-		model.numberOfVertices,
-		gl.UNSIGNED_SHORT,
-		0)
+	gl.drawElements(gl.TRIANGLES, model.count, gl.UNSIGNED_SHORT, 0)
 }
 
 function bindModel(attribs, model) {
@@ -309,9 +304,11 @@ function drawSea() {
 }
 
 function drawGround(uniforms, attribs) {
-	var model = ground.model
+	var model = ground.model,
+		matrix = ground.matrix,
+		size = ground.model.size
 	bindModel(attribs, model)
-	drawModel(ground.matrix, model, uniforms, ground.color)
+	drawModel(matrix, model, uniforms, ground.color)
 }
 
 function draw() {
@@ -360,6 +357,11 @@ function input() {
 	} else if (keysDown[50]) {
 		rotate(vm, im, M.PI2 * .4, 1, 0, 0)
 		translate(vm, vm, 0, -8, -10)
+	} else if (keysDown[51]) {
+		far = 1000
+		setProjectionMatrix()
+		rotate(vm, im, M.PI2 * .75, 1, 0, 0)
+		translate(vm, vm, 0, -75, -35)
 	}
 
 	var s = .05
@@ -471,14 +473,7 @@ function keyDown(event) {
 	setKey(event, true)
 }
 
-function resize() {
-	width = gl.canvas.clientWidth
-	height = gl.canvas.clientHeight
-
-	gl.canvas.width = width
-	gl.canvas.height = height
-	gl.viewport(0, 0, width, height)
-
+function setProjectionMatrix() {
 	var aspect = width / height,
 		near = .1,
 		r = near - far,
@@ -489,8 +484,17 @@ function resize() {
 		0, f, 0, 0,
 		0, 0, (far + near) / r, -1,
 		0, 0, (2 * far * near) / r, 0])
+}
 
-	invert(cm, vm)
+function resize() {
+	width = gl.canvas.clientWidth
+	height = gl.canvas.clientHeight
+
+	gl.canvas.width = width
+	gl.canvas.height = height
+	gl.viewport(0, 0, width, height)
+
+	setProjectionMatrix()
 }
 
 function cacheUniformLocations(program, uniforms) {
@@ -598,7 +602,7 @@ function calculateNormals(vertices, indicies) {
 }
 
 function createModel(vertices, indicies) {
-	var model = {numberOfVertices: indicies.length}
+	var model = {count: indicies.length}
 
 	model.vertices = gl.createBuffer()
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.vertices)
@@ -685,24 +689,33 @@ function createMap(power, roughness, amplification) {
 		size = Math.pow(2, power) + 1,
 		radius = size >> 1
 
-	if (roughness > 0) {
+	if (roughness) {
 		var heightMap = createHeightMap(size, roughness)
-		amplification = amplification || 8
-		for (var i = 0, y = 0, z = -radius, half = amplification / 2;
-				z <= radius; ++z) {
+		for (var i = 0, half = amplification / 2,
+				z = -radius; z <= radius; ++z) {
 			for (var x = -radius; x <= radius; ++x) {
 				vertices.push(x)
-				vertices.push(y + heightMap[i++] * amplification - half)
+				vertices.push(heightMap[i++] * amplification - half)
 				vertices.push(z)
 			}
 		}
 	} else {
-		for (var i = 0, y = 0, z = -radius; z <= radius; ++z) {
-			for (var x = -radius; x <= radius; ++x) {
+		for (var i = 1, z = -radius; z < radius; ++z, i += size * 3) {
+			for (var x = -radius; x < radius; ++x) {
 				vertices.push(x)
-				vertices.push(y + (M.random() - .5) * .5)
+				vertices.push(M.random() *.5 - .5)
 				vertices.push(z)
 			}
+			// copy first column to make it seamless
+			vertices.push(x)
+			vertices.push(vertices[i])
+			vertices.push(z)
+		}
+		// and the first row completely
+		for (var i = 1, x = -radius; x <= radius; ++x, i += 3) {
+			vertices.push(x)
+			vertices.push(vertices[i])
+			vertices.push(z)
 		}
 	}
 
@@ -721,7 +734,9 @@ function createMap(power, roughness, amplification) {
 		++i
 	}
 
-	return createModel(vertices, indicies)
+	var model = createModel(vertices, indicies)
+	model.size = radius << 1
+	return model
 }
 
 function createCube() {
@@ -776,19 +791,8 @@ function createCube() {
 		20, 23, 22])
 }
 
-function createPlane() {
-	return createModel([
-		-1, 1, 0,
-		-1, -1, 0,
-		1, 1, 0,
-		1, -1, 0],[
-		0, 2, 1,
-		2, 3, 1])
-}
-
 function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
-		//plane = createPlane(),
 		cube = createCube()
 
 	sea = {
@@ -798,8 +802,9 @@ function createObjects() {
 	}
 
 	translate(m, im, 0, -16, 0)
+	scale(m, m, 5, 1, 5)
 	ground = {
-		model: createMap(6, .6, 16),
+		model: createMap(4, .6, 16),
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1],
 	}
@@ -813,41 +818,13 @@ function createObjects() {
 		},
 	}))
 
-	rotate(vm, vm, M.PI2 * .7, 1, 0, 0)
+	rotate(vm, im, M.PI2 * .7, 1, 0, 0)
 	translate(vm, vm, 0, -30, -10)
 
 	entitiesLength = entities.length
 }
 
-function getContext() {
-	for (var canvas = D.getElementById('Canvas'),
-			ctx,
-			types = ['webgl', 'experimental-webgl'],
-			l = types.length,
-			i = 0; i < l; ++i) {
-		if ((ctx = canvas.getContext(types[i], {alpha: false}))) {
-			return ctx
-		}
-	}
-}
-
-function init() {
-	if (!(gl = getContext())) {
-		alert('WebGL not available')
-		return
-	}
-	var fs = D.getElementById('FragmentShader').textContent
-	if (!(program = buildProgram(
-			D.getElementById('VertexShader').textContent,
-			fs)) ||
-		!(seaProgram = buildProgram(
-			D.getElementById('SeaVertexShader').textContent,
-			fs))) {
-		alert('GLSL did not compile')
-		return
-	}
-
-	createObjects()
+function cacheLocations() {
 	cacheAttribLocations(program, ['vertex', 'normal'])
 	cacheUniformLocations(program, [
 		'mvp',
@@ -865,6 +842,38 @@ function init() {
 		'color',
 		'sky',
 		'far'])
+}
+
+function createPrograms() {
+	var fs = D.getElementById('FragmentShader').textContent
+	return (program = buildProgram(
+			D.getElementById('VertexShader').textContent,
+			fs)) &&
+		(seaProgram = buildProgram(
+			D.getElementById('SeaVertexShader').textContent,
+			fs))
+}
+
+function getContext() {
+	for (var canvas = D.getElementById('Canvas'),
+			ctx,
+			types = ['webgl', 'experimental-webgl'],
+			l = types.length,
+			i = 0; i < l; ++i) {
+		if ((ctx = canvas.getContext(types[i], {alpha: false}))) {
+			return ctx
+		}
+	}
+}
+
+function init() {
+	if (!(gl = getContext()) || !createPrograms()) {
+		alert('WebGL not available')
+		return
+	}
+
+	cacheLocations()
+	createObjects()
 
 	gl.enable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
