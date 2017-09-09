@@ -263,6 +263,7 @@ function transpose(out, a) {
 	}
 }
 
+var whiteColor = [1, 1, 1, 1]
 function drawModel(mm, model, uniforms, color) {
 	multiply(mvp, vm, mm)
 	multiply(mvp, pm, mvp)
@@ -277,6 +278,9 @@ function drawModel(mm, model, uniforms, color) {
 	gl.uniform4fv(uniforms.color, color)
 
 	gl.drawElements(gl.TRIANGLES, model.count, gl.UNSIGNED_SHORT, 0)
+
+gl.uniform4fv(uniforms.color, whiteColor)
+gl.drawElements(gl.LINES, model.count, gl.UNSIGNED_SHORT, 0)
 }
 
 function bindModel(attribs, model) {
@@ -305,8 +309,7 @@ function drawSea() {
 
 function drawGround(uniforms, attribs) {
 	var model = ground.model,
-		matrix = ground.matrix,
-		size = ground.model.size
+		matrix = ground.matrix
 	bindModel(attribs, model)
 	drawModel(matrix, model, uniforms, ground.color)
 }
@@ -337,19 +340,145 @@ function draw() {
 	}
 
 	// draw transparent objects over opaque ones and from back to front
-	drawSea()
+	//drawSea()
 }
 
-function move(x, y, z) {
+function dump() {
+	var gm = ground.matrix
+	console.log("ground.matrix:")
+	console.log(gm[0], gm[1], gm[2], gm[3])
+	console.log(gm[4], gm[5], gm[6], gm[7])
+	console.log(gm[8], gm[9], gm[10], gm[11])
+	console.log(gm[12], gm[13], gm[14], gm[15])
+}
+
+function moveView(x, y, z) {
 	translate(m, im, x, y, z)
 	multiply(vm, m, vm)
 }
 
-function turn(rad, x, y, z) {
+function turnView(rad, x, y, z) {
 	rotate(m, im, rad, x, y, z)
 	multiply(vm, m, vm)
 }
 
+function debugInput() {
+	var s = .05
+	if (keysDown[16]) {
+		if (keysDown[87]) {
+			moveView(0, -s, 0)
+		} else if (keysDown[83]) {
+			moveView(0, s, 0)
+		}
+	} else {
+		if (keysDown[87]) {
+			moveView(0, 0, s)
+		} else if (keysDown[83]) {
+			moveView(0, 0, -s)
+		}
+	}
+	if (keysDown[65]) {
+		moveView(s, 0, 0)
+	} else if (keysDown[68]) {
+		moveView(-s, 0, 0)
+	}
+
+	var a = .01
+	if (keysDown[16]) {
+		if (keysDown[37]) {
+			turnView(-a, 0, 0, 1)
+		} else if (keysDown[39]) {
+			turnView(a, 0, 0, 1)
+		}
+	} else {
+		if (keysDown[37]) {
+			turnView(-a, 0, 1, 0)
+		} else if (keysDown[39]) {
+			turnView(a, 0, 1, 0)
+		}
+	}
+	if (keysDown[38]) {
+		turnView(-a, 1, 0, 0)
+	} else if (keysDown[40]) {
+		turnView(a, 1, 0, 0)
+	}
+}
+
+var fed = false
+function move(delta, feed, dbg) {
+delta *= 10
+	var gm = ground.matrix,
+		gml = ground.model,
+		dx = gm[12],
+		dz = gm[14],
+		d = M.sqrt(dx*dx + dz*dz),
+		x = 0,
+		z = delta
+console.log(dx + "," + dz)
+	//if (d > ground.model.radius && dz > 0) {
+	//if ((feed && !fed) || d > gml.radius) {
+	if (feed && !fed) {
+	//if (d > gml.radius) {
+		var s = gml.size / 14,
+			tx = gm[0] * s,
+			tz = gm[8] * s
+		// sets it to rotation point at 1/0, works when moved and/or rotated
+		/*x -= dx + tx
+		z -= dz + tz
+		// set it to corner
+		x += tz
+		z -= tx*/
+console.log("tx: " + gm[0] + ", tz: " + gm[8])
+		//if (dx > 0) { tx = -tx }
+		//if (dz < 0) { tz = -tz }
+		//x -= tx
+		//z -= tz
+		/*if (tz !== 0) {
+			x -= tz
+			z += tx
+		}*/
+		//x += dx > 0 ? -tx : tx
+		//z += dz > 0 ? -tz : tz
+
+switch (dbg) {
+	case 0:
+		// move in direction of rotation vector (right)
+		x += tx
+		z += tz
+		break
+	case 1:
+		// move against direction of rotation vector (left)
+		x -= tx
+		z -= tz
+		break
+	case 2:
+		// move up relative to rotation vector (up)
+		x -= tz
+		z += tx
+		break
+	case 3:
+		// move down relative to rotation vector (down)
+		x += tz
+		z -= tx
+		break
+}
+fed = true
+	}
+	translate(m, im, x, 0, z)
+	multiply(gm, m, gm)
+	var sm = sea.matrix
+	multiply(sm, m, sm)
+}
+
+function turn(rad) {
+	rotate(m, im, rad, 0, 1, 0)
+	multiply(ground.matrix, m, ground.matrix)
+	multiply(sea.matrix, m, sea.matrix)
+//dump()
+fed = false
+}
+
+var useDebugInput = false
 function input() {
 	if (keysDown[49]) {
 		rotate(vm, im, M.PI2 * .7, 1, 0, 0)
@@ -360,53 +489,45 @@ function input() {
 	} else if (keysDown[51]) {
 		far = 1000
 		setProjectionMatrix()
-		rotate(vm, im, M.PI2 * .75, 1, 0, 0)
-		translate(vm, vm, 0, -200, -100)
-	} else if (keysDown[52]) {
-		far = 1000
-		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
+	} else if (keysDown[52]) {
+		move(0, true)
+	}
+
+if (keysDown[67]) {
+translate(ground.matrix, im, 0, -16, 0)
+scale(ground.matrix, ground.matrix, 7, 1, 7)
+fed = false
+	//useDebugInput ^= true
+}
+if (useDebugInput) {
+	debugInput()
+	return
+}
+
+	if (keysDown[38]) {
+		move(0, true, 2)
+	} else if (keysDown[40]) {
+		move(0, true, 3)
+	}
+
+	if (keysDown[37]) {
+		move(0, true, 0)
+	} else if (keysDown[39]) {
+		move(0, true, 1)
 	}
 
 	var s = .05
-	if (keysDown[16]) {
-		if (keysDown[87]) {
-			move(0, -s, 0)
-		} else if (keysDown[83]) {
-			move(0, s, 0)
-		}
-	} else {
-		if (keysDown[87]) {
-			move(0, 0, s)
-		} else if (keysDown[83]) {
-			move(0, 0, -s)
-		}
-	}
-	if (keysDown[65]) {
-		move(s, 0, 0)
-	} else if (keysDown[68]) {
-		move(-s, 0, 0)
+	if (keysDown[87]) {
+		move(s)
 	}
 
 	var a = .01
-	if (keysDown[16]) {
-		if (keysDown[37]) {
-			turn(-a, 0, 0, 1)
-		} else if (keysDown[39]) {
-			turn(a, 0, 0, 1)
-		}
-	} else {
-		if (keysDown[37]) {
-			turn(-a, 0, 1, 0)
-		} else if (keysDown[39]) {
-			turn(a, 0, 1, 0)
-		}
-	}
-	if (keysDown[38]) {
-		turn(-a, 1, 0, 0)
-	} else if (keysDown[40]) {
-		turn(a, 1, 0, 0)
+	if (keysDown[65]) {
+		turn(-a)
+	} else if (keysDown[68]) {
+		turn(a)
 	}
 }
 
@@ -692,61 +813,64 @@ function createMap(power, roughness, amplification) {
 	var vertices = [],
 		indicies = [],
 		size = Math.pow(2, power) + 1,
-		mapSize = 2 * size - 1
+		mapSize = 2 * size - 1,
+		offset = mapSize >> 1
 
 	if (roughness) {
 		var heightMap = createHeightMap(size, roughness)
 		for (var i = 0, base = 1, half = amplification / 2,
 				z = 0; z < size; ++z) {
 			for (var x = 0; x < size; ++x) {
-				vertices.push(x)
+				vertices.push(x - offset)
 				vertices.push(heightMap[i++] * amplification - half)
-				vertices.push(z)
+				vertices.push(z - offset)
 			}
 			// copy terrain into second column to form a 2x2 map
 			for (var x = 1, last = size - 1; x < size; ++x) {
-				vertices.push(last + x)
+				vertices.push(last + x - offset)
 				vertices.push(vertices[base])
-				vertices.push(z)
+				vertices.push(z - offset)
 				base += 3
 			}
 			base += size * 3
 		}
 	} else {
-		for (var i = 1, base = 1, untilLast = size - 1,
-				z = 0; z < size; ++z, i += mapSize * 3) {
+		var z = 0
+		for (var i = 1, base = 1, untilLast = size - 1;
+				z < size; ++z, i += mapSize * 3) {
 			for (var x = 0; x < untilLast; ++x) {
-				vertices.push(x)
+				vertices.push(x - offset)
 				vertices.push(M.random() *.5 - .5)
-				vertices.push(z)
+				vertices.push(z - offset)
 			}
 			// copy first column to make it seamless
-			vertices.push(x)
+			vertices.push(x - offset)
 			vertices.push(vertices[i])
-			vertices.push(z)
+			vertices.push(z - offset)
 			// copy terrain into second column to form a 2x2 map
 			for (var x = 1, last = size - 1; x < size; ++x) {
-				vertices.push(last + x)
+				vertices.push(last + x - offset)
 				vertices.push(vertices[base])
-				vertices.push(z)
+				vertices.push(z - offset)
 				base += 3
 			}
 			base += size * 3
 		}
 		// copy first row to make it seamless
 		for (var i = 1, x = 0; x < mapSize; ++x, i += 3) {
-			vertices.push(x)
+			vertices.push(x - offset)
 			vertices.push(vertices[i])
-			vertices.push(z)
+			vertices.push(z - offset)
 		}
 	}
 
 	// and copy all of the above for the second row
-	for (var base = (mapSize * 3) + 1, z = 1; z < size; ++z) {
+	for (var base = (mapSize * 3) + 1, untilLast = size - 1,
+			z = 0; z < untilLast; ++z) {
 		for (var x = 0; x < mapSize; ++x) {
-			vertices.push(x)
+			vertices.push(x - offset)
 			vertices.push(vertices[base])
-			vertices.push(size + z)
+			vertices.push(size + z - offset)
 			base += 3
 		}
 	}
@@ -827,18 +951,20 @@ function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	var map = createMap(6)
-	translate(m, im, -map.size >> 1, 0, -map.size >> 1)
 	sea = {
-		model: map,
-		matrix: new FA(m),
+		model: createMap(6),
+		matrix: new FA(im),
 		color: [.4, .7, .8, .3],
 	}
 
-	var map = createMap(4, .6, 16)
+	var map = createMap(4, .6, 16),
+		mag = 7
 	translate(m, im, 0, -16, 0)
-	scale(m, m, 7, 1, 7)
-	translate(m, m, -map.size >> 1, 0, -map.size >> 1)
+	scale(m, m, mag, 1, mag)
+	map.size = map.size * mag
+	map.radius = map.size / 4
+console.log("map.size is " + map.size)
+console.log("map.radius is " + map.radius)
 	ground = {
 		model: map,
 		matrix: new FA(m),
@@ -849,9 +975,6 @@ function createObjects() {
 		model: cube,
 		matrix: new FA(im),
 		color: colorWhite,
-		update: function() {
-			rotate(this.matrix, this.matrix, .001, 1, 1, 1)
-		},
 	}))
 
 	rotate(vm, im, M.PI2 * .7, 1, 0, 0)
