@@ -23,7 +23,6 @@ var M = Math,
 	entitiesLength = 0,
 	entities = [],
 	sea,
-	outerSea,
 	ground,
 	player,
 	width,
@@ -337,7 +336,7 @@ function draw() {
 	}
 
 	// draw transparent objects over opaque ones and from back to front
-	drawSea()
+	//drawSea()
 }
 
 function moveView(x, y, z) {
@@ -401,30 +400,38 @@ delta *= 10
 		d = M.sqrt(dx*dx + dz*dz),
 		x = 0,
 		z = delta
-	if (d > gml.radius && dz > 0) {
-		var s = gml.size / 14,
+	//if (dx*dx + dz*dz > gml.radiusSq && dz > 0) {
+	if (d > gml.radius * .5 && dz > 0) {
+		var s = gml.shift,
 			tx = gm[0] * s,
-			tz = gm[8] * s
+			tz = gm[8] * s,
+			dist = M.abs(dx) + M.abs(dz)
 		if (tz > 0) {
-			x += tx
-			z -= tz
+			if (M.abs(dx + tx) + M.abs(dz - tz) < dist) {
+				x += tx
+				z -= tz
+			}
 		} else if (tz < 0) {
-			x -= tx
-			z += tz
+			if (M.abs(dx - tx) + M.abs(dz + tz) < dist) {
+				x -= tx
+				z += tz
+			}
 		}
 		if (tx > 0) {
-			x -= tz
-			z -= tx
+			if (M.abs(dx - tz) + M.abs(dz - tx) < dist) {
+				x -= tz
+				z -= tx
+			}
 		} else if (tx < 0) {
-			x += tz
-			z += tx
+			if (M.abs(dx + tz) + M.abs(dz + tx) < dist) {
+				x += tz
+				z += tx
+			}
 		}
 	}
 	translate(m, im, x, 0, z)
 	multiply(gm, m, gm)
 	var sm = sea.matrix
-	multiply(sm, m, sm)
-	sm = outerSea.matrix
 	multiply(sm, m, sm)
 }
 
@@ -433,8 +440,6 @@ function turn(rad) {
 	var om = ground.matrix
 	multiply(om, m, om)
 	om = sea.matrix
-	multiply(om, m, om)
-	om = outerSea.matrix
 	multiply(om, m, om)
 }
 
@@ -459,7 +464,7 @@ function input() {
 
 if (keysDown[67]) {
 	sea.matrix = new FA(im)
-	translate(ground.matrix, im, 0, -16, 0)
+	translate(ground.matrix, im, 0, -18 * ground.model.max, 0)
 	scale(ground.matrix, ground.matrix, 7, 1, 7)
 }
 if (keysDown[48]) {
@@ -904,71 +909,23 @@ function createCube() {
 function createSea(size) {
 	var model = createMap(6),
 		mag = size / model.size
-	scale(m, im, mag, 1, mag)
+	//scale(m, im, mag, 1, mag)
 	model.size *= mag
 	sea = {
 		model: model,
-		matrix: new FA(m),
-		//matrix: new FA(im),
+		matrix: new FA(im),
 		color: [.4, .7, .8, .3]
 	}
-	/*var border = sea.model.size * .5,
-		leftPlane = createModel([
-			-border, 0, 1000,
-			-1000, 0, 1000,
-			-1000, 0, -1000,
-			-border, 0, -1000],[
-			0, 2, 1,
-			0, 2, 3]),
-		rightPlane = createModel([
-			border, 0, 1000,
-			1000, 0, 1000,
-			1000, 0, -1000,
-			border, 0, -1000],[
-			0, 2, 1,
-			0, 2, 3])
-	seaLeftPlane = {
-		model: leftPlane,
-		matrix: new FA(im),
-		color: colorSea
-	}
-	seaRightPlane = {
-		model: rightPlane,
-		matrix: new FA(im),
-		color: colorSea
-	}*/
-	var border = sea.model.size * .5,
-		plane = createModel([
-			-border, 0, 1000,
-			-1000, 0, 1000,
-			-1000, 0, -1000,
-			-border, 0, -1000,
-/*
-			border, 0, 1000,
-			1000, 0, 1000,
-			1000, 0, -1000,
-			border, 0, -1000,*/
-			],[
-			],[
-			0, 2, 1,
-			0, 2, 3,
-
-			/*4, 6, 5,
-			4, 6, 7,*/
-			])
-	entities.push((outerSea = {
-		model: plane,
-		matrix: new FA(im),
-		color: sea.color
-	}))
 }
 
 function createGround(mag) {
-	var model = createMap(4, .6, 16)
-	translate(m, im, 0, -17 * model.max, 0)
+	var model = createMap(4, 1.6, 16)
+	translate(m, im, 0, -18 * model.max, 0)
 	scale(m, m, mag, 1, mag)
 	model.size = model.size * mag
 	model.radius = model.size / 4
+	model.radiusSq = model.radius * model.radius
+	model.shift = model.size / (mag * 2)
 	ground = {
 		model: model,
 		matrix: new FA(m),
@@ -980,13 +937,18 @@ function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	createGround(8)
+	createGround(7)
 	createSea(ground.model.size)
 
 	entities.push((player = {
 		model: cube,
 		matrix: new FA(im),
-		color: colorWhite
+		color: colorWhite,
+		roll: 0,
+		update: function() {
+			rotate(this.matrix, im,
+				M.sin(this.roll += .1 * factor) * .1, .2, 0, 1)
+		}
 	}))
 
 	rotate(vm, im, M.PI2 * .7, 1, 0, 0)
