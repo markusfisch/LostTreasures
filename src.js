@@ -263,7 +263,6 @@ function transpose(out, a) {
 	}
 }
 
-var whiteColor = [1, 1, 1, 1]
 function drawModel(mm, model, uniforms, color) {
 	multiply(mvp, vm, mm)
 	multiply(mvp, pm, mvp)
@@ -278,9 +277,6 @@ function drawModel(mm, model, uniforms, color) {
 	gl.uniform4fv(uniforms.color, color)
 
 	gl.drawElements(gl.TRIANGLES, model.count, gl.UNSIGNED_SHORT, 0)
-
-gl.uniform4fv(uniforms.color, whiteColor)
-gl.drawElements(gl.LINES, model.count, gl.UNSIGNED_SHORT, 0)
 }
 
 function bindModel(attribs, model) {
@@ -312,10 +308,6 @@ function drawGround(uniforms, attribs) {
 		matrix = ground.matrix
 	bindModel(attribs, model)
 	drawModel(matrix, model, uniforms, ground.color)
-model = dbgGround.model
-matrix = dbgGround.matrix
-bindModel(attribs, model)
-drawModel(matrix, model, uniforms, dbgGround.color)
 }
 
 function draw() {
@@ -344,16 +336,7 @@ function draw() {
 	}
 
 	// draw transparent objects over opaque ones and from back to front
-	//drawSea()
-}
-
-function dump() {
-	var gm = ground.matrix
-	console.log("ground.matrix:")
-	console.log(gm[0], gm[1], gm[2], gm[3])
-	console.log(gm[4], gm[5], gm[6], gm[7])
-	console.log(gm[8], gm[9], gm[10], gm[11])
-	console.log(gm[12], gm[13], gm[14], gm[15])
+	drawSea()
 }
 
 function moveView(x, y, z) {
@@ -408,9 +391,7 @@ function debugInput() {
 	}
 }
 
-var fed = false
 function move(delta, feed, dbg) {
-if (fed) { return }
 delta *= 10
 	var gm = ground.matrix,
 		gml = ground.model,
@@ -419,80 +400,35 @@ delta *= 10
 		d = M.sqrt(dx*dx + dz*dz),
 		x = 0,
 		z = delta
-//console.log(dx, dz, gm[0], gm[8])
-	//if (d > ground.model.radius && dz > 0) {
-	//if ((feed && !fed) || d > gml.radius) {
-	if (!fed && d > gml.radius && dz > 0) {
-	//if (feed && !fed) {
-	//if (d > gml.radius) {
+	if (d > gml.radius && dz > 0) {
 		var s = gml.size / 14,
 			tx = gm[0] * s,
 			tz = gm[8] * s
-		// sets it to rotation point at 1/0, works when moved and/or rotated
-		/*x -= dx + tx
-		z -= dz + tz
-		// set it to corner
-		x += tz
-		z -= tx*/
-/*console.log(ground.matrix[8], ground.matrix[0])
-console.log('r', M.atan2(ground.matrix[8], ground.matrix[0]))
-		var ax = tx,//M.abs(tx),
-			az = M.abs(tz),
-			mx = M.max(ax, az),
-			mz = M.min(ax, az)
-		if (M.abs(dx) > 0) {
-			if (dx > 0) {
-console.log("shift left")
-				// shift left
-				x -= mx
-				z -= mz
-			} else {
-console.log("shift right")
-				// shift right
-				x += mx
-				z += mz
-			}
-		}
-		if (dz > s) {
-console.log("shift up")
-			// shift up
-			x += mz
-			z -= mx
-		}*/
-fed = true
-console.log(tx, tz)
-		if (tz == 0) {
-			// no shift
-			/*x += tz
-			z -= tx*/
-		} else if (tz > 0) {
-console.log("shift left")
+		if (tz > 0) {
 			x += tx
 			z -= tz
-		} else {
-console.log("shift right")
+		} else if (tz < 0) {
 			x -= tx
 			z += tz
+		}
+		if (tx > 0) {
+			x -= tz
+			z -= tx
+		} else if (tx < 0) {
+			x += tz
+			z += tx
 		}
 	}
 	translate(m, im, x, 0, z)
 	multiply(gm, m, gm)
 	var sm = sea.matrix
 	multiply(sm, m, sm)
-	if (!fed) {
-		multiply(dbgGround.matrix, m, dbgGround.matrix)
-	}
 }
 
 function turn(rad) {
 	rotate(m, im, rad, 0, 1, 0)
 	multiply(ground.matrix, m, ground.matrix)
 	multiply(sea.matrix, m, sea.matrix)
-	if (!fed) {
-		multiply(dbgGround.matrix, m, dbgGround.matrix)
-	}
-//dump()
-//console.log('r', M.atan2(ground.matrix[8], ground.matrix[0]))
 }
 
 var useDebugInput = false
@@ -508,18 +444,12 @@ function input() {
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
-	} else if (keysDown[52]) {
-		rotate(vm, im, M.PI2, 1, 0, 0)
-		translate(vm, vm, 0, -30, 0)
-	} else if (keysDown[53]) {
-		move(0, true)
 	}
 
 if (keysDown[67]) {
-translate(ground.matrix, im, 0, -16, 0)
-scale(ground.matrix, ground.matrix, 7, 1, 7)
-dbgGround.matrix = new FA(ground.matrix)
-fed = false
+	sea.matrix = new FA(im)
+	translate(ground.matrix, im, 0, -16, 0)
+	scale(ground.matrix, ground.matrix, 7, 1, 7)
 }
 if (keysDown[48]) {
 	useDebugInput ^= true
@@ -848,7 +778,7 @@ function createMap(power, roughness, amplification) {
 	} else {
 		var z = 0
 		for (var i = 1, base = 4, untilLast = size - 1;
-				z < size; ++z, i += mapSize * 3) {
+				z < untilLast; ++z, i += mapSize * 3) {
 			for (var x = 0; x < untilLast; ++x) {
 				vertices.push(x - offset)
 				vertices.push(M.random() *.5 - .5)
@@ -958,33 +888,36 @@ function createCube() {
 		20, 23, 22])
 }
 
-var dbgGround
+function createGround(mag) {
+	translate(m, im, 0, -16, 0)
+	scale(m, m, mag, 1, mag)
+	var model = createMap(4, .6, 16)
+	model.size = model.size * mag
+	model.radius = model.size / 4
+	ground = {
+		model: model,
+		matrix: new FA(m),
+		color: [.3, .2, .1, 1],
+	}
+}
+
+function createSea(size) {
+	var model = createMap(6),
+		mag = size / model.size
+	scale(m, im, mag, 1, mag)
+	sea = {
+		model: model,
+		matrix: new FA(m),
+		color: [.4, .7, .8, .3],
+	}
+}
+
 function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	sea = {
-		model: createMap(6),
-		matrix: new FA(im),
-		color: [.4, .7, .8, .3],
-	}
-
-	var map = createMap(4, .6, 16),
-		mag = 7
-	translate(m, im, 0, -16, 0)
-	scale(m, m, mag, 1, mag)
-	map.size = map.size * mag
-	map.radius = map.size / 4
-	ground = {
-		model: map,
-		matrix: new FA(m),
-		color: [.3, .2, .1, 1],
-	}
-dbgGround = {
-	model: map,
-	matrix: new FA(m),
-	color: [.1, .0, .0, 1],
-}
+	createGround(7)
+	createSea(ground.model.size)
 
 	entities.push((player = {
 		model: cube,
