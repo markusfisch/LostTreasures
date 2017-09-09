@@ -312,6 +312,10 @@ function drawGround(uniforms, attribs) {
 		matrix = ground.matrix
 	bindModel(attribs, model)
 	drawModel(matrix, model, uniforms, ground.color)
+model = dbgGround.model
+matrix = dbgGround.matrix
+bindModel(attribs, model)
+drawModel(matrix, model, uniforms, dbgGround.color)
 }
 
 function draw() {
@@ -406,6 +410,7 @@ function debugInput() {
 
 var fed = false
 function move(delta, feed, dbg) {
+if (fed) { return }
 delta *= 10
 	var gm = ground.matrix,
 		gml = ground.model,
@@ -414,10 +419,11 @@ delta *= 10
 		d = M.sqrt(dx*dx + dz*dz),
 		x = 0,
 		z = delta
-console.log(dx + "," + dz)
+//console.log(dx, dz, gm[0], gm[8])
 	//if (d > ground.model.radius && dz > 0) {
 	//if ((feed && !fed) || d > gml.radius) {
-	if (feed && !fed) {
+	if (!fed && d > gml.radius && dz > 0) {
+	//if (feed && !fed) {
 	//if (d > gml.radius) {
 		var s = gml.size / 14,
 			tx = gm[0] * s,
@@ -428,54 +434,65 @@ console.log(dx + "," + dz)
 		// set it to corner
 		x += tz
 		z -= tx*/
-console.log("tx: " + gm[0] + ", tz: " + gm[8])
-		//if (dx > 0) { tx = -tx }
-		//if (dz < 0) { tz = -tz }
-		//x -= tx
-		//z -= tz
-		/*if (tz !== 0) {
-			x -= tz
-			z += tx
+/*console.log(ground.matrix[8], ground.matrix[0])
+console.log('r', M.atan2(ground.matrix[8], ground.matrix[0]))
+		var ax = tx,//M.abs(tx),
+			az = M.abs(tz),
+			mx = M.max(ax, az),
+			mz = M.min(ax, az)
+		if (M.abs(dx) > 0) {
+			if (dx > 0) {
+console.log("shift left")
+				// shift left
+				x -= mx
+				z -= mz
+			} else {
+console.log("shift right")
+				// shift right
+				x += mx
+				z += mz
+			}
+		}
+		if (dz > s) {
+console.log("shift up")
+			// shift up
+			x += mz
+			z -= mx
 		}*/
-		//x += dx > 0 ? -tx : tx
-		//z += dz > 0 ? -tz : tz
-
-switch (dbg) {
-	case 0:
-		// move in direction of rotation vector (right)
-		x += tx
-		z += tz
-		break
-	case 1:
-		// move against direction of rotation vector (left)
-		x -= tx
-		z -= tz
-		break
-	case 2:
-		// move up relative to rotation vector (up)
-		x -= tz
-		z += tx
-		break
-	case 3:
-		// move down relative to rotation vector (down)
-		x += tz
-		z -= tx
-		break
-}
 fed = true
+console.log(tx, tz)
+		if (tz == 0) {
+			// no shift
+			/*x += tz
+			z -= tx*/
+		} else if (tz > 0) {
+console.log("shift left")
+			x += tx
+			z -= tz
+		} else {
+console.log("shift right")
+			x -= tx
+			z += tz
+		}
 	}
 	translate(m, im, x, 0, z)
 	multiply(gm, m, gm)
 	var sm = sea.matrix
 	multiply(sm, m, sm)
+	if (!fed) {
+		multiply(dbgGround.matrix, m, dbgGround.matrix)
+	}
 }
 
 function turn(rad) {
 	rotate(m, im, rad, 0, 1, 0)
 	multiply(ground.matrix, m, ground.matrix)
 	multiply(sea.matrix, m, sea.matrix)
+	if (!fed) {
+		multiply(dbgGround.matrix, m, dbgGround.matrix)
+	}
 //dump()
-fed = false
+//console.log('r', M.atan2(ground.matrix[8], ground.matrix[0]))
 }
 
 var useDebugInput = false
@@ -492,31 +509,25 @@ function input() {
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
 	} else if (keysDown[52]) {
+		rotate(vm, im, M.PI2, 1, 0, 0)
+		translate(vm, vm, 0, -30, 0)
+	} else if (keysDown[53]) {
 		move(0, true)
 	}
 
 if (keysDown[67]) {
 translate(ground.matrix, im, 0, -16, 0)
 scale(ground.matrix, ground.matrix, 7, 1, 7)
+dbgGround.matrix = new FA(ground.matrix)
 fed = false
-	//useDebugInput ^= true
+}
+if (keysDown[48]) {
+	useDebugInput ^= true
 }
 if (useDebugInput) {
 	debugInput()
 	return
 }
-
-	if (keysDown[38]) {
-		move(0, true, 2)
-	} else if (keysDown[40]) {
-		move(0, true, 3)
-	}
-
-	if (keysDown[37]) {
-		move(0, true, 0)
-	} else if (keysDown[39]) {
-		move(0, true, 1)
-	}
 
 	var s = .05
 	if (keysDown[87]) {
@@ -818,7 +829,7 @@ function createMap(power, roughness, amplification) {
 
 	if (roughness) {
 		var heightMap = createHeightMap(size, roughness)
-		for (var i = 0, base = 1, half = amplification / 2,
+		for (var i = 0, base = 4, half = amplification / 2,
 				z = 0; z < size; ++z) {
 			for (var x = 0; x < size; ++x) {
 				vertices.push(x - offset)
@@ -836,7 +847,7 @@ function createMap(power, roughness, amplification) {
 		}
 	} else {
 		var z = 0
-		for (var i = 1, base = 1, untilLast = size - 1;
+		for (var i = 1, base = 4, untilLast = size - 1;
 				z < size; ++z, i += mapSize * 3) {
 			for (var x = 0; x < untilLast; ++x) {
 				vertices.push(x - offset)
@@ -947,6 +958,7 @@ function createCube() {
 		20, 23, 22])
 }
 
+var dbgGround
 function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
@@ -963,13 +975,16 @@ function createObjects() {
 	scale(m, m, mag, 1, mag)
 	map.size = map.size * mag
 	map.radius = map.size / 4
-console.log("map.size is " + map.size)
-console.log("map.radius is " + map.radius)
 	ground = {
 		model: map,
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1],
 	}
+dbgGround = {
+	model: map,
+	matrix: new FA(m),
+	color: [.1, .0, .0, 1],
+}
 
 	entities.push((player = {
 		model: cube,
