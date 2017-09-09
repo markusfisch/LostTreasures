@@ -23,6 +23,7 @@ var M = Math,
 	entitiesLength = 0,
 	entities = [],
 	sea,
+	outerSea,
 	ground,
 	player,
 	width,
@@ -423,12 +424,18 @@ delta *= 10
 	multiply(gm, m, gm)
 	var sm = sea.matrix
 	multiply(sm, m, sm)
+	sm = outerSea.matrix
+	multiply(sm, m, sm)
 }
 
 function turn(rad) {
 	rotate(m, im, rad, 0, 1, 0)
-	multiply(ground.matrix, m, ground.matrix)
-	multiply(sea.matrix, m, sea.matrix)
+	var om = ground.matrix
+	multiply(om, m, om)
+	om = sea.matrix
+	multiply(om, m, om)
+	om = outerSea.matrix
+	multiply(om, m, om)
 }
 
 var useDebugInput = false
@@ -444,6 +451,10 @@ function input() {
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
+	} else if (keysDown[52]) {
+		far = 1000
+		setProjectionMatrix()
+		translate(vm, im, 0, 0, -300)
 	}
 
 if (keysDown[67]) {
@@ -730,8 +741,7 @@ function createHeightMap(size, roughness) {
 		set(x, y, a / i + offset)
 	}
 	for (var step = max;;) {
-		var x, y, half = step >> 1,
-			scale = roughness * (step / max)
+		var x, y, half = step >> 1, scale = roughness * step / max
 		if (half < 1) {
 			break
 		}
@@ -755,15 +765,17 @@ function createMap(power, roughness, amplification) {
 		indicies = [],
 		size = Math.pow(2, power) + 1,
 		mapSize = 2 * size - 1,
-		offset = mapSize >> 1
+		offset = mapSize >> 1,
+		max = .5
 
 	if (roughness) {
 		var heightMap = createHeightMap(size, roughness)
-		for (var i = 0, base = 4, half = amplification / 2,
-				z = 0; z < size; ++z) {
+		for (var i = 0, base = 4, z = 0; z < size; ++z) {
 			for (var x = 0; x < size; ++x) {
+				var h = heightMap[i++]
+				max = Math.max(max, h)
 				vertices.push(x - offset)
-				vertices.push(heightMap[i++] * amplification - half)
+				vertices.push(h * amplification)
 				vertices.push(z - offset)
 			}
 			// copy terrain into second column to form a 2x2 map
@@ -781,7 +793,7 @@ function createMap(power, roughness, amplification) {
 				z < untilLast; ++z, i += mapSize * 3) {
 			for (var x = 0; x < untilLast; ++x) {
 				vertices.push(x - offset)
-				vertices.push(M.random() *.5 - .5)
+				vertices.push(M.random() * .5 - .5)
 				vertices.push(z - offset)
 			}
 			// copy first column to make it seamless
@@ -833,6 +845,7 @@ function createMap(power, roughness, amplification) {
 
 	var model = createModel(vertices, indicies)
 	model.size = mapSize - 1
+	model.max = max
 	return model
 }
 
@@ -888,10 +901,72 @@ function createCube() {
 		20, 23, 22])
 }
 
+function createSea(size) {
+	var model = createMap(6),
+		mag = size / model.size
+	scale(m, im, mag, 1, mag)
+	model.size *= mag
+	sea = {
+		model: model,
+		matrix: new FA(m),
+		//matrix: new FA(im),
+		color: [.4, .7, .8, .3]
+	}
+	/*var border = sea.model.size * .5,
+		leftPlane = createModel([
+			-border, 0, 1000,
+			-1000, 0, 1000,
+			-1000, 0, -1000,
+			-border, 0, -1000],[
+			0, 2, 1,
+			0, 2, 3]),
+		rightPlane = createModel([
+			border, 0, 1000,
+			1000, 0, 1000,
+			1000, 0, -1000,
+			border, 0, -1000],[
+			0, 2, 1,
+			0, 2, 3])
+	seaLeftPlane = {
+		model: leftPlane,
+		matrix: new FA(im),
+		color: colorSea
+	}
+	seaRightPlane = {
+		model: rightPlane,
+		matrix: new FA(im),
+		color: colorSea
+	}*/
+	var border = sea.model.size * .5,
+		plane = createModel([
+			-border, 0, 1000,
+			-1000, 0, 1000,
+			-1000, 0, -1000,
+			-border, 0, -1000,
+/*
+			border, 0, 1000,
+			1000, 0, 1000,
+			1000, 0, -1000,
+			border, 0, -1000,*/
+			],[
+			],[
+			0, 2, 1,
+			0, 2, 3,
+
+			/*4, 6, 5,
+			4, 6, 7,*/
+			])
+	entities.push((outerSea = {
+		model: plane,
+		matrix: new FA(im),
+		color: sea.color
+	}))
+}
+
 function createGround(mag) {
-	translate(m, im, 0, -16, 0)
-	scale(m, m, mag, 1, mag)
 	var model = createMap(4, .6, 16)
+	translate(m, im, 0, -17 * model.max, 0)
+	scale(m, m, mag, 1, mag)
 	model.size = model.size * mag
 	model.radius = model.size / 4
 	ground = {
@@ -901,28 +976,17 @@ function createGround(mag) {
 	}
 }
 
-function createSea(size) {
-	var model = createMap(6),
-		mag = size / model.size
-	scale(m, im, mag, 1, mag)
-	sea = {
-		model: model,
-		matrix: new FA(m),
-		color: [.4, .7, .8, .3],
-	}
-}
-
 function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	createGround(7)
+	createGround(8)
 	createSea(ground.model.size)
 
 	entities.push((player = {
 		model: cube,
 		matrix: new FA(im),
-		color: colorWhite,
+		color: colorWhite
 	}))
 
 	rotate(vm, im, M.PI2 * .7, 1, 0, 0)
