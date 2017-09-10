@@ -15,7 +15,7 @@ var M = Math,
 	nm = new FA(16),
 	mvp = new FA(im),
 	m = new FA(16),
-	far = 50,
+	far = 75,
 	skyColor = [.43, .73, .96, 1],
 	lightDirection = [.5, .5, 1],
 	program,
@@ -336,7 +336,7 @@ function draw() {
 	}
 
 	// draw transparent objects over opaque ones and from back to front
-	//drawSea()
+	drawSea()
 }
 
 function moveView(x, y, z) {
@@ -452,11 +452,14 @@ function input() {
 		rotate(vm, im, M.PI2 * .4, 1, 0, 0)
 		translate(vm, vm, 0, -8, -10)
 	} else if (keysDown[51]) {
+		rotate(vm, im, M.PI2 * .2, 1, 0, 0)
+		translate(vm, vm, 0, -8, -20)
+	} else if (keysDown[52]) {
 		far = 1000
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
-	} else if (keysDown[52]) {
+	} else if (keysDown[53]) {
 		far = 1000
 		setProjectionMatrix()
 		translate(vm, im, 0, 0, -300)
@@ -906,14 +909,30 @@ function createCube() {
 		20, 23, 22])
 }
 
+function createHorizon() {
+	var model = createModel([
+		-100, -100, -20,
+		100, -100, -20,
+		-100, 0, -20,
+		100, 0, -20],[
+		0, 1, 3,
+		0, 3, 2,
+		])
+	horizon = {
+		model: model,
+		matrix: new FA(m),
+		color: [.2, .35, .4, 1]
+	}
+}
+
 function createSea(size) {
 	var model = createMap(6),
 		mag = size / model.size
-	//scale(m, im, mag, 1, mag)
+	scale(m, im, mag, 1, mag)
 	model.size *= mag
 	sea = {
 		model: model,
-		matrix: new FA(im),
+		matrix: new FA(m),
 		color: [.4, .7, .8, .3]
 	}
 }
@@ -937,7 +956,7 @@ function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	createGround(7)
+	createGround(9)
 	createSea(ground.model.size)
 
 	entities.push((player = {
