@@ -350,7 +350,7 @@ function draw() {
 
 function updateView(p) {
 	invert(vm, p)
-	translate(m, im, 0, -4, -20)
+	translate(m, im, 0, -2, -20)
 	rotate(m, m, M.PI2 * .2, 1, 0, 0)
 	multiply(vm, m, vm)
 }
