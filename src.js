@@ -938,7 +938,7 @@ function createSea(size) {
 }
 
 function createGround(mag) {
-	var model = createMap(4, 1.6, 16)
+	var model = createMap(4, 1.2, 16)
 	translate(m, im, 0, -18 * model.max, 0)
 	scale(m, m, mag, 1, mag)
 	model.size = model.size * mag
@@ -956,7 +956,7 @@ function createObjects() {
 	var colorWhite = [1, 1, 1, 1],
 		cube = createCube()
 
-	createGround(9)
+	createGround(7)
 	createSea(ground.model.size)
 
 	entities.push((player = {
