@@ -12,6 +12,7 @@ var M = Math,
 		0, 0, 0, 1]),
 	pm,
 	vm = new FA(im),
+	cm = new FA(im),
 	nm = new FA(16),
 	mvp = new FA(im),
 	m = new FA(16),
@@ -329,6 +330,14 @@ function draw() {
 			model = e.model
 			bindModel(attribs, model)
 		}
+		if (e === player) {
+			// DEBUG: is there a better way?
+			// special handling of player matrix because the
+			// view matrix is generated from it
+			rotate(m, e.matrix, M.sin(e.roll += .1 * factor) * .1, .2, 0, 1)
+			drawModel(m, model, uniforms, e.color)
+			continue
+		}
 		drawModel(e.matrix, model, uniforms, e.color)
 		if (e.update) {
 			e.update()
@@ -339,156 +348,83 @@ function draw() {
 	drawSea()
 }
 
-function moveView(x, y, z) {
-	translate(m, im, x, y, z)
+function updateView(p) {
+	invert(vm, p)
+	translate(m, im, 0, -4, -20)
+	rotate(m, m, M.PI2 * .2, 1, 0, 0)
 	multiply(vm, m, vm)
 }
 
-function turnView(rad, x, y, z) {
-	rotate(m, im, rad, x, y, z)
-	multiply(vm, m, vm)
+function move(p, step) {
+	translate(p, p, 0, 0, step)
+	var r = ground.model.radius,
+		x = p[12],
+		z = p[14]
+	if (x < -r || x > r) { p[12] = -x }
+	if (z < -r || z > r) { p[14] = -z }
 }
 
-function debugInput() {
-	var s = .05
-	if (keysDown[16]) {
-		if (keysDown[87]) {
-			moveView(0, -s, 0)
-		} else if (keysDown[83]) {
-			moveView(0, s, 0)
-		}
-	} else {
-		if (keysDown[87]) {
-			moveView(0, 0, s)
-		} else if (keysDown[83]) {
-			moveView(0, 0, -s)
-		}
-	}
-	if (keysDown[65]) {
-		moveView(s, 0, 0)
-	} else if (keysDown[68]) {
-		moveView(-s, 0, 0)
-	}
-
-	var a = .01
-	if (keysDown[16]) {
-		if (keysDown[37]) {
-			turnView(-a, 0, 0, 1)
-		} else if (keysDown[39]) {
-			turnView(a, 0, 0, 1)
-		}
-	} else {
-		if (keysDown[37]) {
-			turnView(-a, 0, 1, 0)
-		} else if (keysDown[39]) {
-			turnView(a, 0, 1, 0)
-		}
-	}
-	if (keysDown[38]) {
-		turnView(-a, 1, 0, 0)
-	} else if (keysDown[40]) {
-		turnView(a, 1, 0, 0)
-	}
+function turn(p, rad) {
+	rotate(p, p, rad, 0, 1, 0)
 }
 
-function move(delta, feed, dbg) {
-delta *= 10
-	var gm = ground.matrix,
-		gml = ground.model,
-		dx = gm[12],
-		dz = gm[14],
-		d = M.sqrt(dx*dx + dz*dz),
-		x = 0,
-		z = delta
-	//if (dx*dx + dz*dz > gml.radiusSq && dz > 0) {
-	if (d > gml.radius * .5 && dz > 0) {
-		var s = gml.shift,
-			tx = gm[0] * s,
-			tz = gm[8] * s,
-			dist = M.abs(dx) + M.abs(dz)
-		if (tz > 0) {
-			if (M.abs(dx + tx) + M.abs(dz - tz) < dist) {
-				x += tx
-				z -= tz
-			}
-		} else if (tz < 0) {
-			if (M.abs(dx - tx) + M.abs(dz + tz) < dist) {
-				x -= tx
-				z += tz
-			}
-		}
-		if (tx > 0) {
-			if (M.abs(dx - tz) + M.abs(dz - tx) < dist) {
-				x -= tz
-				z -= tx
-			}
-		} else if (tx < 0) {
-			if (M.abs(dx + tz) + M.abs(dz + tx) < dist) {
-				x += tz
-				z += tx
-			}
-		}
-	}
-	translate(m, im, x, 0, z)
-	multiply(gm, m, gm)
-	var sm = sea.matrix
-	multiply(sm, m, sm)
-}
-
-function turn(rad) {
-	rotate(m, im, rad, 0, 1, 0)
-	var om = ground.matrix
-	multiply(om, m, om)
-	om = sea.matrix
-	multiply(om, m, om)
-}
-
-var useDebugInput = false
+var dbg = false
 function input() {
-	if (keysDown[49]) {
+// DEBUG views
+	if (keysDown[48]) {
+		W.location.reload(true)
+	} else if (keysDown[49]) {
+		dbg = true
 		rotate(vm, im, M.PI2 * .7, 1, 0, 0)
 		translate(vm, vm, 0, -30, -10)
 	} else if (keysDown[50]) {
+		dbg = true
 		rotate(vm, im, M.PI2 * .4, 1, 0, 0)
 		translate(vm, vm, 0, -8, -10)
 	} else if (keysDown[51]) {
+		dbg = true
 		rotate(vm, im, M.PI2 * .2, 1, 0, 0)
 		translate(vm, vm, 0, -8, -20)
 	} else if (keysDown[52]) {
+		dbg = true
 		far = 1000
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
 	} else if (keysDown[53]) {
+		dbg = true
 		far = 1000
 		setProjectionMatrix()
 		translate(vm, im, 0, 0, -300)
+	} else if (keysDown[67]) {
+		player.matrix = new FA(im)
+	} else if (keysDown[86]) {
+		far = 1000
+		translate(sea.matrix, im, -1000, 0, 0)
+		setProjectionMatrix()
+		dbg = false
 	}
+// END DEBUG
 
-if (keysDown[67]) {
-	sea.matrix = new FA(im)
-	translate(ground.matrix, im, 0, -18 * ground.model.max, 0)
-	scale(ground.matrix, ground.matrix, 7, 1, 7)
-}
-if (keysDown[48]) {
-	useDebugInput ^= true
-}
-if (useDebugInput) {
-	debugInput()
-	return
-}
+	var p = player.matrix,
+		s = -.5,
+		a = .01
 
-	var s = .05
 	if (keysDown[87]) {
-		move(s)
+		move(p, s)
 	}
 
-	var a = .01
 	if (keysDown[65]) {
-		turn(-a)
+		turn(p, a)
 	} else if (keysDown[68]) {
-		turn(a)
+		turn(p, -a)
 	}
+
+// DEBUG
+if (dbg) { return }
+// END DEBUG
+
+	updateView(p)
 }
 
 function run() {
@@ -606,13 +542,9 @@ function cacheAttribLocations(program, attribs) {
 
 function compileShader(src, type) {
 	var shader = gl.createShader(type)
-
 	gl.shaderSource(shader, src)
 	gl.compileShader(shader)
-
-	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ?
-		shader :
-		null
+	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
 }
 
 function linkProgram(vs, fs) {
@@ -627,7 +559,6 @@ function linkProgram(vs, fs) {
 			p = null
 		}
 	}
-
 	return p
 }
 
@@ -641,7 +572,6 @@ function buildProgram(vertexSource, fragmentSource) {
 
 		gl.deleteShader(vs)
 	}
-
 	return p
 }
 
@@ -692,9 +622,7 @@ function createModel(vertices, indicies) {
 
 	model.vertices = gl.createBuffer()
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.vertices)
-	gl.bufferData(gl.ARRAY_BUFFER,
-		new FA(vertices),
-		gl.STATIC_DRAW)
+	gl.bufferData(gl.ARRAY_BUFFER, new FA(vertices), gl.STATIC_DRAW)
 
 	model.normals = gl.createBuffer()
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.normals)
@@ -704,8 +632,7 @@ function createModel(vertices, indicies) {
 
 	model.indicies = gl.createBuffer()
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,
-		new Uint16Array(indicies),
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indicies),
 		gl.STATIC_DRAW)
 
 	return model
@@ -909,22 +836,6 @@ function createCube() {
 		20, 23, 22])
 }
 
-function createHorizon() {
-	var model = createModel([
-		-100, -100, -20,
-		100, -100, -20,
-		-100, 0, -20,
-		100, 0, -20],[
-		0, 1, 3,
-		0, 3, 2,
-		])
-	horizon = {
-		model: model,
-		matrix: new FA(m),
-		color: [.2, .35, .4, 1]
-	}
-}
-
 function createSea(size) {
 	var model = createMap(6),
 		mag = size / model.size
@@ -953,47 +864,29 @@ function createGround(mag) {
 }
 
 function createObjects() {
-	var colorWhite = [1, 1, 1, 1],
-		cube = createCube()
-
 	createGround(7)
 	createSea(ground.model.size)
 
 	entities.push((player = {
-		model: cube,
+		model: createCube(),
 		matrix: new FA(im),
-		color: colorWhite,
-		roll: 0,
-		update: function() {
-			rotate(this.matrix, im,
-				M.sin(this.roll += .1 * factor) * .1, .2, 0, 1)
-		}
+		color: [1, 1, 1, 1],
+		roll: 0
 	}))
-
-	rotate(vm, im, M.PI2 * .7, 1, 0, 0)
-	translate(vm, vm, 0, -30, -10)
 
 	entitiesLength = entities.length
 }
 
 function cacheLocations() {
-	cacheAttribLocations(program, ['vertex', 'normal'])
-	cacheUniformLocations(program, [
-		'mvp',
-		'nm',
-		'light',
-		'color',
-		'sky',
-		'far'])
-	cacheAttribLocations(seaProgram, ['vertex', 'normal'])
-	cacheUniformLocations(seaProgram, [
-		'mvp',
-		'nm',
-		'light',
-		'time',
-		'color',
-		'sky',
-		'far'])
+	var attribs = ['vertex', 'normal'],
+		uniforms = ['mvp', 'nm', 'light', 'color', 'sky', 'far']
+
+	cacheAttribLocations(program, attribs)
+	cacheUniformLocations(program, uniforms)
+
+	cacheAttribLocations(seaProgram, attribs)
+	uniforms.push('time')
+	cacheUniformLocations(seaProgram, uniforms)
 }
 
 function createPrograms() {
@@ -1026,6 +919,7 @@ function init() {
 
 	cacheLocations()
 	createObjects()
+	updateView(player.matrix)
 
 	gl.enable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
