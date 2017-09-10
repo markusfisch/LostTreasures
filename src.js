@@ -350,8 +350,9 @@ function draw() {
 
 function updateView(p) {
 	invert(vm, p)
-	translate(m, im, 0, -2, -20)
-	rotate(m, m, M.PI2 * .2, 1, 0, 0)
+	//translate(m, im, 0, -2, -20)
+	//rotate(m, m, M.PI2 * .2, 1, 0, 0)
+	translate(m, im, 0, 6, -20)
 	multiply(vm, m, vm)
 }
 
@@ -720,10 +721,10 @@ function createMap(power, roughness, amplification) {
 		var heightMap = createHeightMap(size, roughness)
 		for (var i = 0, base = 4, z = 0; z < size; ++z) {
 			for (var x = 0; x < size; ++x) {
-				var h = heightMap[i++]
+				var h = heightMap[i++] * amplification
 				max = Math.max(max, h)
 				vertices.push(x - offset)
-				vertices.push(h * amplification)
+				vertices.push(h)
 				vertices.push(z - offset)
 			}
 			// copy terrain into second column to form a 2x2 map
@@ -862,13 +863,11 @@ function createSea(size) {
 }
 
 function createGround(mag) {
-	var model = createMap(4, 1.2, 16)
-	translate(m, im, 0, -18 * model.max, 0)
+	var model = createMap(4, .6, 12)
+	translate(m, im, 0, -(7 + model.max), 0)
 	scale(m, m, mag, 1, mag)
 	model.size = model.size * mag
 	model.radius = model.size / 4
-	model.radiusSq = model.radius * model.radius
-	model.shift = model.size / (mag * 2)
 	ground = {
 		model: model,
 		matrix: new FA(m),
