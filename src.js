@@ -331,7 +331,7 @@ function draw() {
 			bindModel(attribs, model)
 		}
 		if (e === player) {
-			// DEBUG: is there a better way?
+// DEBUG: is there a better way?
 			// special handling of player matrix because the
 			// view matrix is generated from it
 			rotate(m, e.matrix, M.sin(e.roll += .1 * factor) * .1, .2, 0, 1)
@@ -410,14 +410,27 @@ function input() {
 		s = -.5,
 		a = .01
 
-	if (keysDown[87]) {
-		move(p, s)
-	}
+	if (pointersLength > 0) {
+		var px = pointersX[0],
+			py = pointersY[0]
 
-	if (keysDown[65]) {
-		turn(p, a)
-	} else if (keysDown[68]) {
-		turn(p, -a)
+		move(p, s)
+
+		if (px < -.5) {
+			turn(p, a)
+		} else if (px > .5) {
+			turn(p, -a)
+		}
+	} else {
+		if (keysDown[87]) {
+			move(p, s)
+		}
+
+		if (keysDown[65]) {
+			turn(p, a)
+		} else if (keysDown[68]) {
+			turn(p, -a)
+		}
 	}
 
 // DEBUG
