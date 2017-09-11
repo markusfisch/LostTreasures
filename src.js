@@ -441,7 +441,7 @@ function input() {
 			turn(p, -a)
 		}
 	} else {
-		if (keysDown[87]) {
+		if (keysDown[87] || keysDown[65] || keysDown[68]) {
 			move(p, s)
 		}
 
@@ -827,6 +827,7 @@ function createMap(power, roughness, amplification) {
 }
 
 function createPyramid() {
+	// will have shared normals!
 	return createModel([
 		// tip
 		0, 1, 0,
