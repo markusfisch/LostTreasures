@@ -348,11 +348,25 @@ function draw() {
 	drawSea()
 }
 
+var view = 0
 function updateView(p) {
 	invert(vm, p)
-	//translate(m, im, 0, -2, -20)
-	//rotate(m, m, M.PI2 * .2, 1, 0, 0)
-	translate(m, im, 0, 6, -20)
+	switch (view % 3) {
+		case 0:
+			// behind the boat, horizon in upper quarter
+			translate(m, im, 0, -2, -20)
+			rotate(m, m, M.PI2 * .2, 1, 0, 0)
+			break
+		case 1:
+			// high behind boat, sea surface covers screen
+			translate(m, im, 0, 0, -20)
+			rotate(m, m, M.PI2 * .35, 1, 0, 0)
+			break
+		case 2:
+			// behind boat, submerged
+			translate(m, im, 0, 6, -20)
+			break
+	}
 	multiply(vm, m, vm)
 }
 
@@ -397,13 +411,17 @@ function input() {
 		far = 1000
 		setProjectionMatrix()
 		translate(vm, im, 0, 0, -300)
-	} else if (keysDown[67]) {
+	} else if (keysDown[67]) { //c
 		player.matrix = new FA(im)
-	} else if (keysDown[86]) {
+	} else if (keysDown[71]) { //v
 		far = 1000
 		translate(sea.matrix, im, -1000, 0, 0)
 		setProjectionMatrix()
-		dbg = false
+		dbg = false //g
+	} else if (keysDown[85]) {
+		view = 2
+	} else if (keysDown[86]) {
+		view = 1
 	}
 // END DEBUG
 
@@ -792,10 +810,42 @@ function createMap(power, roughness, amplification) {
 		++i
 	}
 
+	if (roughness) {
+		for (var i = 0, l = vertices.length; i < l; ++i) {
+			if (vertices[i] == -offset) {
+				vertices[i] = -1000
+			} else if (vertices[i] == offset) {
+				vertices[i] = 1000
+			}
+		}
+	}
+
 	var model = createModel(vertices, indicies)
 	model.size = mapSize - 1
 	model.max = max
 	return model
+}
+
+function createPyramid() {
+	return createModel([
+		// tip
+		0, 1, 0,
+		// bottom
+		-1, -1, -1,
+		1, -1, -1,
+		-1, -1, 1,
+		1, -1, 1],[
+		// front
+		0, 3, 4,
+		// right
+		0, 4, 2,
+		// back
+		0, 1, 2,
+		// left
+		0, 3, 1,
+		// bottom
+		1, 3, 2,
+		2, 3, 4])
 }
 
 function createCube() {
@@ -863,8 +913,8 @@ function createSea(size) {
 }
 
 function createGround(mag) {
-	var model = createMap(4, .6, 12)
-	translate(m, im, 0, -(7 + model.max), 0)
+	var model = createMap(4, .6, 8)
+	translate(m, im, 0, -(10 + model.max), 0)
 	scale(m, m, mag, 1, mag)
 	model.size = model.size * mag
 	model.radius = model.size / 4
@@ -876,8 +926,17 @@ function createGround(mag) {
 }
 
 function createObjects() {
+	//createGround(11)
 	createGround(7)
 	createSea(ground.model.size)
+
+	translate(m, im, -10, -12, -20)
+	scale(m, m, 5, 3, 5)
+	entities.push({
+		model: createPyramid(),
+		matrix: new FA(m),
+		color: [.3, .2, .1, 1]
+	})
 
 	entities.push((player = {
 		model: createCube(),
