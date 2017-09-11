@@ -350,7 +350,7 @@ function draw() {
 	drawSea()
 }
 
-var view = 0
+var view = 2
 function updateView(p) {
 	invert(vm, p)
 	switch (view % 3) {
@@ -361,12 +361,12 @@ function updateView(p) {
 			break
 		case 1:
 			// high behind boat, sea surface covers screen
-			translate(m, im, 0, 0, -20)
+			translate(m, im, 0, 0, -30)
 			rotate(m, m, M.PI2 * .35, 1, 0, 0)
 			break
 		case 2:
 			// behind boat, submerged
-			translate(m, im, 0, 6, -20)
+			translate(m, im, 0, 6, -30)
 			break
 	}
 	multiply(vm, m, vm)
@@ -731,12 +731,17 @@ function calculateMapIndicies(size) {
 	return indicies
 }
 
-function expandToHorizon(vertices, offset) {
+function expandToHorizon(vertices, offset, lower) {
 	for (var i = 0, l = vertices.length; i < l; ++i) {
 		if (vertices[i] == -offset) {
 			vertices[i] = -1000
 		} else if (vertices[i] == offset) {
 			vertices[i] = 1000
+		} else {
+			continue
+		}
+		if (lower && i % 3 == 0) {
+			vertices[i + 1] = -1000
 		}
 	}
 }
@@ -873,15 +878,89 @@ function createFloorModel(power, roughness, amplification) {
 		}
 	}
 
-	expandToHorizon(vertices, offset)
+	expandToHorizon(vertices, offset, true)
 
 console.log("floor size: " + size + "x" + size)
 console.log("floor vertices: " + vertices.length)
 	var model = createModel(vertices, calculateMapIndicies(size))
 	model.heightMap = heightMap
+	model.size = size
 	model.radius = offset
 	model.max = max
 	return model
+}
+
+function mirrorModel(vertices, indicies) {
+	var n = vertices.length / 3
+	for (var i = 0, l = vertices.length; i < l;) {
+		vertices.push(-vertices[i++])
+		vertices.push(vertices[i++])
+		vertices.push(vertices[i++])
+	}
+	for (var i = 0, l = indicies.length; i < l; i += 3) {
+		indicies.push(n + indicies[i + 2])
+		indicies.push(n + indicies[i + 1])
+		indicies.push(n + indicies[i])
+	}
+}
+
+function createShipModel() {
+	var vertices = [
+		-0.800000, 0.400000, 1.887755,
+		-0.600001, 0.400000, 1.887756,
+		0, 0.400000, -2.012127,
+		-0.800001, 0.400000, 0.005054,
+		-1.000000, 0.400000, 0.005052,
+		-0.700000, 0.400000, -1.877649,
+		0, 0.400000, -3.222436,
+		-0.000001, 0.400000, 2.565932,
+		-0.600000, -0.200000, 1.768481,
+		-0.000001, -0.600000, 1.292725,
+		0, -0.600000, -1.419450,
+		-0.000001, -0.747880, 0.005054,
+		-0.800000, -0.300000, 0.005052,
+		-0.500000, -0.200000, -1.691971,
+		-0.000001, -0.200000, 2.291192,
+		-0.000001, 0.400000, 2.291192,
+		-0.600000, 0.400000, -1.406973,
+		-0.509186, 0.095721, 1.805415,
+		0, 0.095721, -0.129426,
+		-0.674191, 0.095721, 0.050676,
+		0, 0.095721, 2.138260,
+	], indicies = [
+		4, 3, 16,
+		3, 0, 1,
+		7, 8, 14,
+		6, 13, 5,
+		9, 12, 11,
+		1, 7, 15,
+		4, 8, 0,
+		13, 4, 5,
+		9, 14, 8,
+		13, 6, 10,
+		10, 12, 13,
+		15, 17, 1,
+		1, 19, 3,
+		3, 19, 16,
+		16, 18, 2,
+		17, 18, 19,
+		16, 2, 5,
+		5, 4, 16,
+		2, 6, 5,
+		3, 4, 0,
+		7, 0, 8,
+		9, 8, 12,
+		1, 0, 7,
+		4, 12, 8,
+		13, 12, 4,
+		10, 11, 12,
+		15, 20, 17,
+		1, 17, 19,
+		16, 19, 18,
+		17, 20, 18,
+	]
+	mirrorModel(vertices, indicies)
+	return createModel(vertices, indicies)
 }
 
 function createPyramidModel() {
@@ -974,23 +1053,39 @@ console.log("sea scaled size: " + model.radius * 2 * mag)
 }
 
 function createFloor(mag) {
-	var model = createFloorModel(5, .6, 24)
-	translate(m, im, 0, -(10 + model.max), 0)
+	var amp = 24,
+		model = createFloorModel(5, .6, amp),
+		base = -(10 + model.max)
+	translate(m, im, 0, base, 0)
 	scale(m, m, mag, 1, mag)
 	floor = {
 		model: model,
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1],
-		radius: model.radius * mag
+		radius: model.radius * mag,
+		mag: mag,
+		amp: amp,
+		base: base
 	}
+}
+
+function getHeight(x, z) {
+	x = ((x + floor.radius) / floor.mag) | 0
+	z = ((z + floor.radius) / floor.mag) | 0
+	var fm = floor.model,
+		offset = (M.abs(z * fm.size + x) | 0) % fm.heightMap.length,
+		h = floor.base + fm.heightMap[offset] * floor.amp
+console.log("get height at " + x + "/" + z + " of map " + fm.size + "x" + fm.size + " (" + offset + " of " + fm.heightMap.length + "): " + h + " (" + fm.heightMap[offset] + ")")
+	return h
 }
 
 function createObjects() {
 	createFloor(7)
 	createSea()
 
-	translate(m, im, -10, -22, -40)
+	translate(m, im, -10, getHeight(-10, -40), -40)
 	scale(m, m, 5, 3, 5)
+	//scale(m, m, 9, 6, 9)
 	entities.push({
 		model: createPyramidModel(),
 		matrix: new FA(m),
@@ -998,7 +1093,7 @@ function createObjects() {
 	})
 
 	entities.push((player = {
-		model: createCubeModel(),
+		model: createShipModel(),
 		matrix: new FA(im),
 		color: [1, 1, 1, 1],
 		roll: 0,

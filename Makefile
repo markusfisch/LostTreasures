@@ -2,6 +2,7 @@ BUILD = index.html
 
 test.zip: $(BUILD)
 	zip $@ $^
+	@ls -l $@
 	@echo "$$(( 10000000 / 13312 * $$(stat -f '%z' $@) / 100000 ))%"
 	@rm -f $@
 

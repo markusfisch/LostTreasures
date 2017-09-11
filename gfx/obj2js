@@ -1,0 +1,33 @@
+#/usr/bin/env bash
+
+FACES=1
+echo "var vertices = ["
+while read COMMAND A B C
+do
+	case "$COMMAND" in
+		v)
+			for N in "$A" "$B" "$C"
+			do
+				if [ "$N" == '0.000000' ] || [ $N == '-0.000000' ]
+				then
+					N=0
+				fi
+				echo -n "$N, "
+			done
+			echo
+			;;
+		f)
+			(( FACES )) && {
+				echo "], indicies = ["
+				FACES=0
+			}
+			for N in "$A" "$B" "$C"
+			do
+				N=${N%%/*}
+				echo -n "$(( N-1 )), "
+			done
+			echo
+			;;
+	esac
+done
+echo "]"
