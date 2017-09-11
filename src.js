@@ -331,10 +331,10 @@ function draw() {
 			bindModel(attribs, model)
 		}
 		if (e === player) {
-// DEBUG: is there a better way?
-			// special handling of player matrix because the
-			// view matrix is generated from it
-			rotate(m, e.matrix, M.sin(e.roll += .1 * factor) * .1, .2, 0, 1)
+			// render player with separate matrix because the
+			// view matrix is generated from the player matrix
+			rotate(m, e.matrix, e.tilt + M.sin(e.roll += .1 * factor) *
+				(.05 - player.v / (player.maxSpeed * 20)), .2, .2, 1)
 			drawModel(m, model, uniforms, e.color)
 			continue
 		}
@@ -381,6 +381,7 @@ function move(p, step) {
 
 function turn(p, rad) {
 	rotate(p, p, rad, 0, 1, 0)
+	player.tilt += rad * 7
 }
 
 var dbg = false
@@ -426,14 +427,25 @@ function input() {
 // END DEBUG
 
 	var p = player.matrix,
-		s = -.5,
-		a = .01
+		s = player.maxSpeed * factor,
+		a = player.maxTurn * factor
+
+	if (player.v > 0) {
+		move(p, -player.v)
+		player.v -= .005 * factor
+	}
+	if (player.tilt != 0) {
+		player.tilt *= .75
+		if (M.abs(player.tilt) < .01) {
+			player.tilt = 0
+		}
+	}
 
 	if (pointersLength > 0) {
 		var px = pointersX[0],
 			py = pointersY[0]
 
-		move(p, s)
+		player.v = s
 
 		if (px < -.5) {
 			turn(p, a)
@@ -442,7 +454,7 @@ function input() {
 		}
 	} else {
 		if (keysDown[87] || keysDown[65] || keysDown[68]) {
-			move(p, s)
+			player.v = s
 		}
 
 		if (keysDown[65]) {
@@ -927,7 +939,6 @@ function createGround(mag) {
 }
 
 function createObjects() {
-	//createGround(11)
 	createGround(7)
 	createSea(ground.model.size)
 
@@ -943,7 +954,11 @@ function createObjects() {
 		model: createCube(),
 		matrix: new FA(im),
 		color: [1, 1, 1, 1],
-		roll: 0
+		roll: 0,
+		v: 0,
+		tilt: 0,
+		maxSpeed: .5,
+		maxTurn: .01
 	}))
 
 	entitiesLength = entities.length
