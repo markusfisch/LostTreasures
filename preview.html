@@ -26,12 +26,15 @@ uniform mat4 mvp;
 uniform mat4 nm;
 uniform vec3 light;
 uniform float time;
+uniform float radius;
 
 varying mediump float intensity;
 varying mediump float z;
 
 void main() {
-	float t = sin(time + vertex.x + vertex.z) * .3;
+	float vx = mod(radius + vertex.x, radius);
+	float vy = mod(radius + vertex.y, radius);
+	float t = sin(time + vx + vy) * .3;
 	gl_Position = mvp * vec4(vertex.x, vertex.y + t, vertex.z, 1.);
 	z = gl_Position.z;
 	intensity = max(0., dot(normalize(mat3(nm) * normal), light));

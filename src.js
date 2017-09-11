@@ -21,10 +21,11 @@ var M = Math,
 	lightDirection = [.5, .5, 1],
 	program,
 	seaProgram,
+	seaHalf,
 	entitiesLength = 0,
 	entities = [],
 	sea,
-	ground,
+	floor,
 	player,
 	width,
 	height,
@@ -298,17 +299,18 @@ function drawSea() {
 	gl.uniform4fv(uniforms.sky, skyColor)
 	gl.uniform1f(uniforms.far, far)
 	gl.uniform1f(uniforms.time, (now - first) / 500)
+	gl.uniform1f(uniforms.radius, seaHalf)
 
 	var model = sea.model
 	bindModel(attribs, model)
 	drawModel(sea.matrix, model, uniforms, sea.color)
 }
 
-function drawGround(uniforms, attribs) {
-	var model = ground.model,
-		matrix = ground.matrix
+function drawFloor(uniforms, attribs) {
+	var model = floor.model,
+		matrix = floor.matrix
 	bindModel(attribs, model)
-	drawModel(matrix, model, uniforms, ground.color)
+	drawModel(matrix, model, uniforms, floor.color)
 }
 
 function draw() {
@@ -322,7 +324,7 @@ function draw() {
 	gl.uniform4fv(uniforms.sky, skyColor)
 	gl.uniform1f(uniforms.far, far)
 
-	drawGround(uniforms, attribs)
+	drawFloor(uniforms, attribs)
 
 	for (var model, i = entitiesLength; i--;) {
 		var e = entities[i]
@@ -370,13 +372,25 @@ function updateView(p) {
 	multiply(vm, m, vm)
 }
 
+function alignSea(x, z) {
+	var sm = sea.matrix,
+		ss = sea.mag,
+		sr = sea.radius,
+		sx = Math.round(x / sr) * sr,
+		sz = Math.round(z / sr) * sr
+	translate(sm, im, sx, 0, sz)
+	scale(sm, sm, ss, 1, ss)
+}
+
 function move(p, step) {
 	translate(p, p, 0, 0, step)
-	var r = ground.model.radius,
+	var fr = floor.radius,
 		x = p[12],
 		z = p[14]
-	if (x < -r || x > r) { p[12] = -x }
-	if (z < -r || z > r) { p[14] = -z }
+	/*if (x < -fr || x > fr || z < -fr || z > fr) {
+		translate(p, p, 0, 0, -step)
+	}*/
+	alignSea(x, z)
 }
 
 function turn(p, rad) {
@@ -387,41 +401,47 @@ function turn(p, rad) {
 var dbg = false
 function input() {
 // DEBUG views
-	if (keysDown[48]) {
+	if (keysDown[48]) { // 0
 		W.location.reload(true)
-	} else if (keysDown[49]) {
+	} else if (keysDown[49]) { //1
 		dbg = true
 		rotate(vm, im, M.PI2 * .7, 1, 0, 0)
 		translate(vm, vm, 0, -30, -10)
-	} else if (keysDown[50]) {
+	} else if (keysDown[50]) { //2
 		dbg = true
 		rotate(vm, im, M.PI2 * .4, 1, 0, 0)
 		translate(vm, vm, 0, -8, -10)
-	} else if (keysDown[51]) {
+	} else if (keysDown[51]) { //3
 		dbg = true
 		rotate(vm, im, M.PI2 * .2, 1, 0, 0)
 		translate(vm, vm, 0, -8, -20)
-	} else if (keysDown[52]) {
+	} else if (keysDown[52]) { //4
 		dbg = true
 		far = 1000
 		setProjectionMatrix()
 		rotate(vm, im, M.PI2, 1, 0, 0)
 		translate(vm, vm, 0, -300, 0)
-	} else if (keysDown[53]) {
+	} else if (keysDown[53]) { //5
 		dbg = true
 		far = 1000
 		setProjectionMatrix()
 		translate(vm, im, 0, 0, -300)
 	} else if (keysDown[67]) { //c
 		player.matrix = new FA(im)
-	} else if (keysDown[71]) { //v
+		alignSea(0, 0)
+	} else if (keysDown[71]) { //g
 		far = 1000
 		translate(sea.matrix, im, -1000, 0, 0)
 		setProjectionMatrix()
-		dbg = false //g
-	} else if (keysDown[85]) {
+		dbg = false
+	} else if (keysDown[79]) { //o
+		dbg = false
+		view = 0
+	} else if (keysDown[85]) { //u
+		dbg = false
 		view = 2
-	} else if (keysDown[86]) {
+	} else if (keysDown[86]) { //v
+		dbg = false
 		view = 1
 	}
 // END DEBUG
@@ -453,13 +473,17 @@ function input() {
 			turn(p, -a)
 		}
 	} else {
-		if (keysDown[87] || keysDown[65] || keysDown[68]) {
+		var forward = keysDown[87] || keysDown[38] || keysDown[75],
+			left = keysDown[65] || keysDown[37] || keysDown[72],
+			right = keysDown[68] || keysDown[39] || keysDown[76]
+
+		if (forward || left || right) {
 			player.v = s
 		}
 
-		if (keysDown[65]) {
+		if (left) {
 			turn(p, a)
-		} else if (keysDown[68]) {
+		} else if (right) {
 			turn(p, -a)
 		}
 	}
@@ -682,6 +706,35 @@ function createModel(vertices, indicies) {
 	return model
 }
 
+function calculateMapIndicies(size) {
+	var indicies = []
+	for (var i = 0, z = 1; z < size; ++z) {
+		for (var x = 1; x < size; ++x) {
+			// counter-clockwise order
+			indicies.push(i)
+			indicies.push(i + size)
+			indicies.push(i + 1)
+
+			indicies.push(i + 1)
+			indicies.push(i + size)
+			indicies.push(i + size + 1)
+			++i
+		}
+		++i
+	}
+	return indicies
+}
+
+function expandToHorizon(vertices, offset) {
+	for (var i = 0, l = vertices.length; i < l; ++i) {
+		if (vertices[i] == -offset) {
+			vertices[i] = -1000
+		} else if (vertices[i] == offset) {
+			vertices[i] = 1000
+		}
+	}
+}
+
 // from http://www.playfuljs.com/realistic-terrain-in-130-lines/
 function createHeightMap(size, roughness) {
 	var map = new FA(size * size),
@@ -739,61 +792,39 @@ function createHeightMap(size, roughness) {
 	return map
 }
 
-function createMap(power, roughness, amplification) {
+function createSeaModel(power) {
 	var vertices = [],
-		indicies = [],
 		size = Math.pow(2, power) + 1,
 		mapSize = 2 * size - 1,
 		offset = mapSize >> 1,
-		max = .5
+		z = 0
 
-	if (roughness) {
-		var heightMap = createHeightMap(size, roughness)
-		for (var i = 0, base = 4, z = 0; z < size; ++z) {
-			for (var x = 0; x < size; ++x) {
-				var h = heightMap[i++] * amplification
-				max = Math.max(max, h)
-				vertices.push(x - offset)
-				vertices.push(h)
-				vertices.push(z - offset)
-			}
-			// copy terrain into second column to form a 2x2 map
-			for (var x = 1, last = size - 1; x < size; ++x) {
-				vertices.push(last + x - offset)
-				vertices.push(vertices[base])
-				vertices.push(z - offset)
-				base += 3
-			}
-			base += size * 3
-		}
-	} else {
-		var z = 0
-		for (var i = 1, base = 4, untilLast = size - 1;
-				z < untilLast; ++z, i += mapSize * 3) {
-			for (var x = 0; x < untilLast; ++x) {
-				vertices.push(x - offset)
-				vertices.push(M.random() * .5 - .5)
-				vertices.push(z - offset)
-			}
-			// copy first column to make it seamless
+	for (var i = 1, base = 4, untilLast = size - 1;
+			z < untilLast; ++z, i += mapSize * 3) {
+		for (var x = 0; x < untilLast; ++x) {
 			vertices.push(x - offset)
-			vertices.push(vertices[i])
-			vertices.push(z - offset)
-			// copy terrain into second column to form a 2x2 map
-			for (var x = 1, last = size - 1; x < size; ++x) {
-				vertices.push(last + x - offset)
-				vertices.push(vertices[base])
-				vertices.push(z - offset)
-				base += 3
-			}
-			base += size * 3
-		}
-		// copy first row to make it seamless
-		for (var i = 1, x = 0; x < mapSize; ++x, i += 3) {
-			vertices.push(x - offset)
-			vertices.push(vertices[i])
+			vertices.push(M.random() * .5 - .5)
 			vertices.push(z - offset)
 		}
+		// copy first column to make it seamless
+		vertices.push(x - offset)
+		vertices.push(vertices[i])
+		vertices.push(z - offset)
+		// copy terrain into second column to form a 2x2 map
+		for (var x = 1, last = size - 1; x < size; ++x) {
+			vertices.push(last + x - offset)
+			vertices.push(vertices[base])
+			vertices.push(z - offset)
+			base += 3
+		}
+		base += size * 3
+	}
+
+	// copy first row to make it seamless
+	for (var i = 1, x = 0; x < mapSize; ++x, i += 3) {
+		vertices.push(x - offset)
+		vertices.push(vertices[i])
+		vertices.push(z - offset)
 	}
 
 	// and copy all of the above for the second row
@@ -807,38 +838,47 @@ function createMap(power, roughness, amplification) {
 		}
 	}
 
-	for (var i = 0, z = 1; z < mapSize; ++z) {
-		for (var x = 1; x < mapSize; ++x) {
-			// counter-clockwise order
-			indicies.push(i)
-			indicies.push(i + mapSize)
-			indicies.push(i + 1)
+	expandToHorizon(vertices, offset)
 
-			indicies.push(i + 1)
-			indicies.push(i + mapSize)
-			indicies.push(i + mapSize + 1)
-			++i
+console.log("sea size: " + mapSize + "x" + mapSize)
+console.log("sea vertices: " + vertices.length)
+	var model = createModel(vertices, calculateMapIndicies(mapSize))
+	model.radius = offset
+	seaHalf = offset
+console.log("sea offset: " + offset)
+console.log("sea size: " + (offset << 1) * 1.75)
+	return model
+}
+
+function createFloorModel(power, roughness, amplification) {
+	var vertices = [],
+		size = Math.pow(2, power) + 1,
+		offset = size >> 1,
+		max = .5
+
+	var heightMap = createHeightMap(size, roughness)
+	for (var i = 0, z = 0; z < size; ++z) {
+		for (var x = 0; x < size; ++x) {
+			var h = heightMap[i++] * amplification
+			max = Math.max(max, h)
+			vertices.push(x - offset)
+			vertices.push(h)
+			vertices.push(z - offset)
 		}
-		++i
 	}
 
-	if (roughness) {
-		for (var i = 0, l = vertices.length; i < l; ++i) {
-			if (vertices[i] == -offset) {
-				vertices[i] = -1000
-			} else if (vertices[i] == offset) {
-				vertices[i] = 1000
-			}
-		}
-	}
+	expandToHorizon(vertices, offset)
 
-	var model = createModel(vertices, indicies)
-	model.size = mapSize - 1
+console.log("floor size: " + size + "x" + size)
+console.log("floor vertices: " + vertices.length)
+	var model = createModel(vertices, calculateMapIndicies(size))
+	model.heightMap = heightMap
+	model.radius = offset
 	model.max = max
 	return model
 }
 
-function createPyramid() {
+function createPyramidModel() {
 	// will have shared normals!
 	return createModel([
 		// tip
@@ -861,7 +901,7 @@ function createPyramid() {
 		2, 3, 4])
 }
 
-function createCube() {
+function createCubeModel() {
 	return createModel([
 		// front
 		-1, -1, 1,
@@ -913,45 +953,45 @@ function createCube() {
 		20, 23, 22])
 }
 
-function createSea(size) {
-	var model = createMap(6),
-		mag = size / model.size
-	scale(m, im, mag, 1, mag)
-	model.size *= mag
+function createSea() {
+	var model = createSeaModel(6),
+		mag = 1.75
 	sea = {
 		model: model,
-		matrix: new FA(m),
-		color: [.4, .7, .8, .3]
+		matrix: new FA(im),
+		color: [.4, .7, .8, .3],
+		radius: model.radius * mag,
+		mag: mag
 	}
+	alignSea(0, 0)
 }
 
-function createGround(mag) {
-	var model = createMap(4, .6, 8)
+function createFloor(mag) {
+	var model = createFloorModel(5, .6, 8)
 	translate(m, im, 0, -(10 + model.max), 0)
 	scale(m, m, mag, 1, mag)
-	model.size = model.size * mag
-	model.radius = model.size / 4
-	ground = {
+	floor = {
 		model: model,
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1],
+		radius: model.radius * mag
 	}
 }
 
 function createObjects() {
-	createGround(7)
-	createSea(ground.model.size)
+	createFloor(7)
+	createSea()
 
 	translate(m, im, -10, -12, -20)
 	scale(m, m, 5, 3, 5)
 	entities.push({
-		model: createPyramid(),
+		model: createPyramidModel(),
 		matrix: new FA(m),
 		color: [.3, .2, .1, 1]
 	})
 
 	entities.push((player = {
-		model: createCube(),
+		model: createCubeModel(),
 		matrix: new FA(im),
 		color: [1, 1, 1, 1],
 		roll: 0,
@@ -973,6 +1013,7 @@ function cacheLocations() {
 
 	cacheAttribLocations(seaProgram, attribs)
 	uniforms.push('time')
+	uniforms.push('radius')
 	cacheUniformLocations(seaProgram, uniforms)
 }
 
