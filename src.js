@@ -450,12 +450,15 @@ function input() {
 		s = player.maxSpeed * factor,
 		a = player.maxTurn * factor
 
-	if (player.v > 0) {
+	if (player.v != 0) {
 		move(p, -player.v)
-		player.v -= .005 * factor
+		player.v *= .94 * factor
+		if (M.abs(player.v) < .01) {
+			player.v = 0
+		}
 	}
 	if (player.tilt != 0) {
-		player.tilt *= .75
+		player.tilt *= .75 * factor
 		if (M.abs(player.tilt) < .01) {
 			player.tilt = 0
 		}
@@ -474,10 +477,13 @@ function input() {
 		}
 	} else {
 		var forward = keysDown[87] || keysDown[38] || keysDown[75],
+			backward = keysDown[83] || keysDown[40] || keysDown[74],
 			left = keysDown[65] || keysDown[37] || keysDown[72],
 			right = keysDown[68] || keysDown[39] || keysDown[76]
 
-		if (forward || left || right) {
+		if (backward) {
+			player.v = -s / 2
+		} else if (forward || left || right) {
 			player.v = s
 		}
 
@@ -954,8 +960,9 @@ function createCubeModel() {
 }
 
 function createSea() {
-	var model = createSeaModel(6),
-		mag = 1.75
+	var model = createSeaModel(6), mag = 1.75
+	//var model = createSeaModel(5), mag = 3.5
+console.log("sea scaled size: " + model.radius * 2 * mag)
 	sea = {
 		model: model,
 		matrix: new FA(im),
@@ -967,7 +974,7 @@ function createSea() {
 }
 
 function createFloor(mag) {
-	var model = createFloorModel(5, .6, 8)
+	var model = createFloorModel(5, .6, 24)
 	translate(m, im, 0, -(10 + model.max), 0)
 	scale(m, m, mag, 1, mag)
 	floor = {
@@ -982,7 +989,7 @@ function createObjects() {
 	createFloor(7)
 	createSea()
 
-	translate(m, im, -10, -12, -20)
+	translate(m, im, -10, -22, -40)
 	scale(m, m, 5, 3, 5)
 	entities.push({
 		model: createPyramidModel(),
@@ -997,7 +1004,7 @@ function createObjects() {
 		roll: 0,
 		v: 0,
 		tilt: 0,
-		maxSpeed: .5,
+		maxSpeed: .2,
 		maxTurn: .01
 	}))
 
