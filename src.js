@@ -740,8 +740,12 @@ function expandToHorizon(vertices, offset, lower) {
 		} else {
 			continue
 		}
-		if (lower && i % 3 == 0) {
+		if (!lower) {
+			continue
+		} else if (i % 3 == 0) {
 			vertices[i + 1] = -1000
+		} else if (i % 3 == 2) {
+			vertices[i - 1] = -1000
 		}
 	}
 }
@@ -1080,7 +1084,7 @@ console.log("get height at " + x + "/" + z + " of map " + fm.size + "x" + fm.siz
 }
 
 function createObjects() {
-	createFloor(7)
+	createFloor(11)
 	createSea()
 
 	translate(m, im, -10, getHeight(-10, -40), -40)
