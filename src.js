@@ -22,11 +22,13 @@ var M = Math,
 	program,
 	seaProgram,
 	seaHalf,
-	entitiesLength = 0,
-	entities = [],
+	leftArrow,
+	rightArrow,
 	sea,
 	floor,
 	player,
+	entitiesLength = 0,
+	entities = [],
 	width,
 	height,
 	now,
@@ -336,7 +338,7 @@ function draw() {
 			// render player with separate matrix because the
 			// view matrix is generated from the player matrix
 			rotate(m, e.matrix, e.tilt + M.sin(e.roll += .1 * factor) *
-				(.05 - player.v / (player.maxSpeed * 20)), .2, .2, 1)
+				(.05 - player.v / (player.maxSpeed * 10)), .2, .2, 1)
 			drawModel(m, model, uniforms, e.color)
 			continue
 		}
@@ -345,6 +347,11 @@ function draw() {
 			e.update()
 		}
 	}
+
+	var model = leftArrow.model
+	bindModel(attribs, model)
+	drawModel(leftArrow.matrix, model, uniforms, leftArrow.color)
+	drawModel(rightArrow.matrix, model, uniforms, rightArrow.color)
 
 	// draw transparent objects over opaque ones and from back to front
 	drawSea()
@@ -370,6 +377,14 @@ function updateView(p) {
 			break
 	}
 	multiply(vm, m, vm)
+
+	translate(m, p, -3, 0, 20)
+	rotate(m, m, M.PI2, 1, 0, 0)
+	scale(leftArrow.matrix, m, -.5, .5, .5)
+
+	translate(m, p, 3, 0, 20)
+	rotate(m, m, M.PI2, 1, 0, 0)
+	scale(rightArrow.matrix, m, .5, .5, .5)
 }
 
 function alignSea(x, z) {
@@ -395,7 +410,7 @@ function move(p, step) {
 
 function turn(p, rad) {
 	rotate(p, p, rad, 0, 1, 0)
-	player.tilt += rad * 7
+	player.tilt += rad * 4
 }
 
 var dbg = false
@@ -447,18 +462,18 @@ function input() {
 // END DEBUG
 
 	var p = player.matrix,
-		s = player.maxSpeed * factor,
-		a = player.maxTurn * factor
+		s = player.maxSpeed,
+		a = player.maxTurn
 
 	if (player.v != 0) {
 		move(p, -player.v)
-		player.v *= .94 * factor
+		player.v *= .94
 		if (M.abs(player.v) < .01) {
 			player.v = 0
 		}
 	}
 	if (player.tilt != 0) {
-		player.tilt *= .75 * factor
+		player.tilt *= .75
 		if (M.abs(player.tilt) < .01) {
 			player.tilt = 0
 		}
@@ -468,29 +483,33 @@ function input() {
 		var px = pointersX[0],
 			py = pointersY[0]
 
-		player.v = s
-
 		if (px < -.5) {
 			turn(p, a)
 		} else if (px > .5) {
 			turn(p, -a)
+		} else {
+			s *= 1.5
 		}
+
+		player.v = s
 	} else {
 		var forward = keysDown[87] || keysDown[38] || keysDown[75],
 			backward = keysDown[83] || keysDown[40] || keysDown[74],
 			left = keysDown[65] || keysDown[37] || keysDown[72],
 			right = keysDown[68] || keysDown[39] || keysDown[76]
 
-		if (backward) {
-			player.v = -s / 2
-		} else if (forward || left || right) {
-			player.v = s
-		}
-
 		if (left) {
 			turn(p, a)
 		} else if (right) {
 			turn(p, -a)
+		} else {
+			s *= 1.5
+		}
+
+		if (backward) {
+			player.v = -s / 2
+		} else if (forward || left || right) {
+			player.v = s
 		}
 	}
 
@@ -855,13 +874,9 @@ function createSeaModel(power) {
 
 	expandToHorizon(vertices, offset)
 
-console.log("sea size: " + mapSize + "x" + mapSize)
-console.log("sea vertices: " + vertices.length)
 	var model = createModel(vertices, calculateMapIndicies(mapSize))
 	model.radius = offset
 	seaHalf = offset
-console.log("sea offset: " + offset)
-console.log("sea size: " + (offset << 1) * 1.75)
 	return model
 }
 
@@ -884,8 +899,6 @@ function createFloorModel(power, roughness, amplification) {
 
 	expandToHorizon(vertices, offset, true)
 
-console.log("floor size: " + size + "x" + size)
-console.log("floor vertices: " + vertices.length)
 	var model = createModel(vertices, calculateMapIndicies(size))
 	model.heightMap = heightMap
 	model.size = size
@@ -908,61 +921,180 @@ function mirrorModel(vertices, indicies) {
 	}
 }
 
+function createArrowModel() {
+	var vertices = [
+		0.134, -0.096, 7.865,
+		-0.827, 0.096, 8.635,
+		0.134, -0.096, 8.635,
+		-0.827, 0.096, 7.865,
+		-0.827, -0.096, 7.865,
+		0.134, 0.096, 8.635,
+		-0.827, -0.096, 8.635,
+		0.134, 0.096, 7.865,
+		0.134, 0.096, 7.484,
+		1.118, -0.096, 8.250,
+		0.134, 0.096, 9.016,
+		0.134, -0.096, 9.016,
+		1.118, 0.096, 8.250,
+		0.134, -0.096, 7.484,
+	], indicies = [
+		3, 7, 0,
+		4, 0, 2,
+		5, 1, 6,
+		2, 0, 9,
+		12, 10, 11,
+		5, 7, 3,
+		10, 5, 2,
+		12, 5, 10,
+		7, 8, 13,
+		1, 3, 4,
+		8, 12, 9,
+		3, 0, 4,
+		4, 2, 6,
+		5, 6, 2,
+		13, 9, 0,
+		2, 9, 11,
+		12, 11, 9,
+		5, 3, 1,
+		10, 2, 11,
+		5, 12, 7,
+		8, 7, 12,
+		7, 13, 0,
+		1, 4, 6,
+		8, 9, 13,
+	]
+
+	return createModel(vertices, indicies)
+}
+
+function createFishModel() {
+	var vertices = [
+		0, -0.159, 13.256,
+		0, 0.131, 13.256,
+		0, -0.159, 12.965,
+		0, 0.095, 12.934,
+		0.040, -0.159, 13.256,
+		0.040, 0.131, 13.256,
+		0.040, -0.159, 12.965,
+		0.040, 0.095, 12.934,
+		0.000, -0.106, 12.798,
+		0.000, 0.003, 12.784,
+		0.017, -0.106, 12.798,
+		0.017, 0.003, 12.784,
+		0.001, -0.069, 13.427,
+		0.001, 0.041, 13.427,
+		0.017, -0.069, 13.427,
+		0.017, 0.041, 13.427,
+		0.000, -0.237, 13.575,
+		0.000, 0.210, 13.575,
+		0.006, -0.237, 13.607,
+		0.006, 0.210, 13.607,
+	], indicies = [
+		1, 2, 0,
+		3, 11, 9,
+		6, 5, 4,
+		0, 13, 1,
+		6, 0, 2,
+		3, 5, 7,
+		9, 10, 8,
+		3, 8, 2,
+		7, 10, 11,
+		2, 10, 6,
+		13, 19, 15,
+		0, 14, 12,
+		1, 15, 5,
+		5, 14, 4,
+		15, 18, 14,
+		12, 18, 16,
+		13, 16, 17,
+		1, 3, 2,
+		3, 7, 11,
+		6, 7, 5,
+		0, 12, 13,
+		6, 4, 0,
+		3, 1, 5,
+		9, 11, 10,
+		3, 9, 8,
+		7, 6, 10,
+		2, 8, 10,
+		13, 17, 19,
+		0, 4, 14,
+		1, 13, 15,
+		5, 15, 14,
+		15, 19, 18,
+		12, 14, 18,
+		13, 12, 16,
+	]
+
+	mirrorModel(vertices, indicies)
+	return createModel(vertices, indicies)
+}
+
 function createShipModel() {
 	var vertices = [
-		-0.800000, 0.400000, 1.887755,
-		-0.600001, 0.400000, 1.887756,
-		0, 0.400000, -2.012127,
-		-0.800001, 0.400000, 0.005054,
-		-1.000000, 0.400000, 0.005052,
-		-0.700000, 0.400000, -1.877649,
-		0, 0.400000, -3.222436,
-		-0.000001, 0.400000, 2.565932,
-		-0.600000, -0.200000, 1.768481,
-		-0.000001, -0.600000, 1.292725,
-		0, -0.600000, -1.419450,
-		-0.000001, -0.747880, 0.005054,
-		-0.800000, -0.300000, 0.005052,
-		-0.500000, -0.200000, -1.691971,
-		-0.000001, -0.200000, 2.291192,
-		-0.000001, 0.400000, 2.291192,
-		-0.600000, 0.400000, -1.406973,
-		-0.509186, 0.095721, 1.805415,
-		0, 0.095721, -0.129426,
-		-0.674191, 0.095721, 0.050676,
-		0, 0.095721, 2.138260,
+		1.081, -0.300, -0.979,
+		1.341, -0.300, 1.652,
+		0.0, -1.164, 2.225,
+		0.0, -1.164, -1.000,
+		1.569, 0.779, -1.961,
+		2.083, 0.779, 1.984,
+		0.0, 0.605, 3.586,
+		0.0, 0.835, -3.683,
+		1.414, -0.300, 0.442,
+		0.094, -1.164, -1.000,
+		1.365, 0.215, -1.706,
+		0.316, -1.164, 2.225,
+		1.927, 0.215, 1.664,
+		0.0, -1.379, 0.612,
+		0.0, 0.131, 3.810,
+		0.0, 0.131, -3.132,
+		2.083, 0.779, 0.011,
+		0.240, 0.835, -3.683,
+		1.253, 0.605, 3.586,
+		0.102, 0.135, -3.132,
+		0.932, 0.131, 3.810,
+		1.927, 0.215, 0.227,
+		0.316, -1.379, 0.612,
 	], indicies = [
-		4, 3, 16,
-		3, 0, 1,
-		7, 8, 14,
-		6, 13, 5,
-		9, 12, 11,
-		1, 7, 15,
-		4, 8, 0,
-		13, 4, 5,
-		9, 14, 8,
-		13, 6, 10,
-		10, 12, 13,
-		15, 17, 1,
-		1, 19, 3,
-		3, 19, 16,
-		16, 18, 2,
-		17, 18, 19,
-		16, 2, 5,
-		5, 4, 16,
-		2, 6, 5,
-		3, 4, 0,
-		7, 0, 8,
-		9, 8, 12,
-		1, 0, 7,
-		4, 12, 8,
-		13, 12, 4,
-		10, 11, 12,
-		15, 20, 17,
-		1, 17, 19,
-		16, 19, 18,
-		17, 20, 18,
+		11, 13, 22,
+		16, 7, 6,
+		16, 12, 21,
+		20, 6, 14,
+		9, 15, 19,
+		19, 7, 17,
+		4, 19, 17,
+		10, 9, 19,
+		11, 14, 2,
+		1, 20, 11,
+		12, 18, 20,
+		8, 12, 1,
+		0, 21, 8,
+		10, 16, 21,
+		18, 5, 6,
+		9, 13, 3,
+		0, 22, 9,
+		1, 22, 8,
+		11, 2, 13,
+		16, 4, 7,
+		16, 5, 12,
+		20, 18, 6,
+		9, 3, 15,
+		19, 15, 7,
+		4, 10, 19,
+		10, 0, 9,
+		11, 20, 14,
+		1, 12, 20,
+		12, 5, 18,
+		8, 21, 12,
+		0, 10, 21,
+		10, 4, 16,
+		17, 7, 4,
+		9, 22, 13,
+		0, 8, 22,
+		1, 11, 22,
+		6, 5, 16,
 	]
+
 	mirrorModel(vertices, indicies)
 	return createModel(vertices, indicies)
 }
@@ -1045,7 +1177,6 @@ function createCubeModel() {
 function createSea() {
 	var model = createSeaModel(6), mag = 1.75
 	//var model = createSeaModel(5), mag = 3.5
-console.log("sea scaled size: " + model.radius * 2 * mag)
 	sea = {
 		model: model,
 		matrix: new FA(im),
@@ -1073,28 +1204,74 @@ function createFloor(mag) {
 	}
 }
 
-function getHeight(x, z) {
+function getFloorHeight(x, z) {
 	x = ((x + floor.radius) / floor.mag) | 0
 	z = ((z + floor.radius) / floor.mag) | 0
 	var fm = floor.model,
 		offset = (M.abs(z * fm.size + x) | 0) % fm.heightMap.length,
 		h = floor.base + fm.heightMap[offset] * floor.amp
-console.log("get height at " + x + "/" + z + " of map " + fm.size + "x" + fm.size + " (" + offset + " of " + fm.heightMap.length + "): " + h + " (" + fm.heightMap[offset] + ")")
 	return h
+}
+
+function createArrows() {
+	var arrow = createArrowModel(),
+		color = [1, 1, 1, 1]
+
+	leftArrow = {
+		model: arrow,
+		matrix: new FA(im),
+		color: color
+	}
+
+	rightArrow = {
+		model: arrow,
+		matrix: new FA(im),
+		color: color
+	}
 }
 
 function createObjects() {
 	createFloor(11)
 	createSea()
+	createArrows()
 
-	translate(m, im, -10, getHeight(-10, -40), -40)
-	scale(m, m, 5, 3, 5)
-	//scale(m, m, 9, 6, 9)
-	entities.push({
-		model: createPyramidModel(),
-		matrix: new FA(m),
-		color: [.3, .2, .1, 1]
-	})
+	var pyramids = [[-10, -40, 9], [-15, -25, 5]]
+	for (var i in pyramids) {
+		var x = pyramids[i][0],
+			z = pyramids[i][1],
+			s = pyramids[i][2]
+		translate(m, im, x, getFloorHeight(x, z), z)
+		scale(m, m, s, s * .66, s)
+		entities.push({
+			model: createPyramidModel(),
+			matrix: new FA(m),
+			color: [.3, .2, .1, 1]
+		})
+	}
+
+	var fishModel = createFishModel(),
+		fs = floor.model.size * floor.mag,
+		base = floor.base + floor.model.max
+	for (var i = 0; i < 100; ++i) {
+		var speed = .01 + M.random() * .02,
+			vx = M.random() - .5,
+			vz = M.random() - .5,
+			x = -floor.radius + M.random() * fs,
+			y = base + M.random() * 10,
+			z = -floor.radius + M.random() * fs
+		translate(m, im, x, y, z)
+		rotate(m, m, M.atan2(vz, vx), 0, 1, 0)
+		entities.push({
+			model: fishModel,
+			matrix: new FA(m),
+			color: skyColor,
+			vx: vx * speed,
+			vz: vz * speed,
+			update: function() {
+				translate(this.matrix, this.matrix, this.vx, 0, this.vz)
+			}
+		})
+	}
 
 	entities.push((player = {
 		model: createShipModel(),
@@ -1103,7 +1280,7 @@ function createObjects() {
 		roll: 0,
 		v: 0,
 		tilt: 0,
-		maxSpeed: .2,
+		maxSpeed: .15,
 		maxTurn: .01
 	}))
 
@@ -1185,3 +1362,5 @@ function init() {
 }
 
 W.onload = init
+
+;(function(){var script=document.createElement('script');script.onload=function(){var stats=new Stats();document.body.appendChild(stats.dom);requestAnimationFrame(function loop(){stats.update();requestAnimationFrame(loop)});};script.src='http://rawgit.com/mrdoob/stats.js/master/build/stats.min.js';document.head.appendChild(script);})()

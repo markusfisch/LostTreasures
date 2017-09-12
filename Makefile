@@ -10,7 +10,7 @@ $(BUILD): src.js preview.html
 	bash squeeze.sh > $(BUILD)
 
 clean:
-	rm -f $(BUILD)
+	rm -f $(BUILD) gfx/*.obj gfx/*.mtl
 
 up: $(BUILD)
 	scp $(BUILD) hhsw.de@ssh.strato.de:sites/proto/js13k2017/

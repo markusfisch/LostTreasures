@@ -12,6 +12,9 @@ do
 				then
 					N=0
 				fi
+				BEFORE=${N%%.*}
+				AFTER=${N##*.}
+				N="${BEFORE}.${AFTER:0:3}"
 				echo -n "$N, "
 			done
 			echo
