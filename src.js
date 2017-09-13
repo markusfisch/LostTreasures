@@ -319,13 +319,11 @@ function drawSea() {
 function drawPlayer(uniforms, attribs) {
 	// render player with separate matrix because the
 	// view matrix is generated from the player matrix
-	if (player.depth == 0) {
-		rotate(m, player.matrix, player.tilt +
-			M.sin(player.roll += .1 * factor) *
-			(.05 - player.v / (player.maxSpeed * 10)), .2, .2, 1)
-	} else {
-		translate(m, player.matrix, 0, player.depth, 0)
-	}
+	translate(m, player.matrix, 0, player.depth, 0)
+	rotate(m, m, player.tilt +
+		M.sin(player.roll += .1 * factor) *
+		(.05 - player.v / (player.maxSpeed * 10)), .2, .2, 1)
+
 	var model = player.model
 	bindModel(attribs, model)
 	drawModel(m, model, uniforms, player.color)
@@ -527,9 +525,11 @@ function input() {
 		player.v = s
 	}
 
-	if (dive && getFloorHeight(p[12], p[14]) < player.depth - 2) {
+	var h = getFloorHeight(p[12], p[14]),
+		d = player.depth - 2
+	if (dive && h < d) {
 		player.depth -= .05
-	} else {
+	} else if (!dive || h - 2 > d) {
 		player.depth *= .98
 		if (M.abs(player.depth) < .2) {
 			player.depth = 0
