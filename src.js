@@ -531,8 +531,8 @@ function input() {
 		player.depth -= .05
 	} else if (!dive || h - 2 > d) {
 		player.depth *= .98
-		if (M.abs(player.depth) < .2) {
-			player.depth = 0
+		if (M.abs(player.depth) < .5) {
+			player.depth = -.5
 		}
 	}
 
@@ -1328,7 +1328,8 @@ function newGame() {
 	createFloor(11)
 	createEntities()
 
-	player.matrix = new FA(im)
+	translate(m, im, 0, -.5, 0)
+	player.matrix = new FA(m)
 	player.roll = 0
 	player.v = 0
 	player.depth = 0
