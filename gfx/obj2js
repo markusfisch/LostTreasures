@@ -2,19 +2,19 @@
 
 FACES=1
 echo "var vertices = ["
-while read COMMAND A B C
+while read -r COMMAND A B C
 do
 	case "$COMMAND" in
 		v)
 			for N in "$A" "$B" "$C"
 			do
-				if [ "$N" == '0.000000' ] || [ $N == '-0.000000' ]
-				then
-					N=0
-				fi
 				BEFORE=${N%%.*}
 				AFTER=${N##*.}
 				N="${BEFORE}.${AFTER:0:3}"
+				if [ $BEFORE == '0' ] || [ $BEFORE == '-0' ]
+				then
+					[[ "$AFTER" =~ ^[0]*$ ]] && N=0
+				fi
 				echo -n "$N, "
 			done
 			echo
