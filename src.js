@@ -26,6 +26,11 @@ var M = Math,
 	sea,
 	floor,
 	player,
+	bubbleModel,
+	bubbleLast,
+	bubbleColor = [1, 1, 1, 1],
+	bubblesLength = 0,
+	bubbles = [],
 	entitiesLength = 0,
 	entities = [],
 	coins,
@@ -316,6 +321,18 @@ function drawSea() {
 	drawModel(sea.matrix, model, uniforms, sea.color)
 }
 
+function drawBubbles(uniforms, attribs) {
+	bindModel(attribs, bubbleModel)
+	for (var i = bubblesLength; i--;) {
+		var bm = bubbles[i]
+		if (bm[13] > -.5) {
+			continue
+		}
+		bm[13] -= -.2
+		drawModel(bm, bubbleModel, uniforms, bubbleColor)
+	}
+}
+
 function drawPlayer(uniforms, attribs) {
 	// render player with separate matrix because the
 	// view matrix is generated from the player matrix
@@ -389,6 +406,7 @@ function draw() {
 	}
 
 	drawPlayer(uniforms, attribs)
+	drawBubbles(uniforms, attribs)
 	// draw transparent objects over opaque ones and from back to front
 	drawSea()
 }
@@ -451,6 +469,19 @@ function move(p, step) {
 function turn(p, rad) {
 	rotate(p, p, rad, 0, 1, 0)
 	player.tilt += rad * 4
+}
+
+function addBubble(x, y, z) {
+	for (var i = bubblesLength; i--;) {
+		var bm = bubbles[i]
+		if (bm[13] > -.5) {
+			translate(bm, im,
+				x + (M.random() * 2 - 1),
+				y,
+				z + (M.random() * 2 - 1))
+			break
+		}
+	}
 }
 
 function input() {
@@ -525,10 +556,16 @@ function input() {
 		player.v = s
 	}
 
-	var h = getFloorHeight(p[12], p[14]),
+	var px = p[12],
+		pz = p[14],
+		h = getFloorHeight(px, pz),
 		d = player.depth - 2
 	if (dive && h < d) {
 		player.depth -= .05
+		if (player.depth < -1 && now - bubbleLast > 32) {
+			addBubble(px, player.depth, pz)
+			bubbleLast = now
+		}
 	} else if (!dive || h - 2 > d) {
 		player.depth *= .98
 		if (M.abs(player.depth) < .5) {
@@ -943,17 +980,52 @@ function mirrorModel(vertices, indicies) {
 	}
 }
 
+function createBubbleModel() {
+	var vertices = [
+		0, 0.080, -0.080,
+		0, 0, -0.113,
+		0, -0.080, -0.080,
+		0.069, 0.080, -0.040,
+		0.098, 0, -0.056,
+		0.069, -0.080, -0.040,
+		0.069, 0.080, 0.040,
+		0.098, 0, 0.056,
+		0.069, -0.080, 0.040,
+		0, 0.080, 0.080,
+		0, 0, 0.113,
+		0, -0.080, 0.080,
+		0, 0.113, 0,
+		0, -0.113, 0,
+	], indicies = [
+		13, 2, 5,
+		1, 0, 3,
+		2, 1, 4,
+		0, 12, 3,
+		13, 5, 8,
+		4, 3, 6,
+		5, 4, 7,
+		3, 12, 6,
+		13, 8, 11,
+		7, 6, 9,
+		8, 7, 10,
+		6, 12, 9,
+	]
+
+	mirrorModel(vertices, indicies)
+	return createModel(vertices, indicies)
+}
+
 function createPropModel() {
 	var vertices = [
-		0.0, 0.536, 3.083,
+		0, 0.536, 3.083,
 		-0.464, 0.268, 3.083,
 		-0.536, 0.0, 3.083,
 		-0.268, -0.464, 3.083,
 		0.0, -0.536, 3.083,
 		0.464, -0.268, 3.083,
-		0.536, 0.0, 3.083,
+		0.536, 0, 3.083,
 		0.268, 0.464, 3.083,
-		0.0, 0.0, 3.083,
+		0, 0, 3.083,
 	], indicies = [
 		1, 2, 8,
 		3, 4, 8,
@@ -967,7 +1039,7 @@ function createPropModel() {
 function createBoatModel() {
 	var vertices = [
 		0.200, -0.380, -2.459,
-		0.200, 0.0, -2.565,
+		0.200, 0, -2.565,
 		0.470, -0.268, -2.459,
 		0.700, -0.496, -2.217,
 		0.853, -0.649, -1.202,
@@ -975,13 +1047,13 @@ function createBoatModel() {
 		0.853, -0.649, 1.192,
 		0.700, -0.496, 2.207,
 		0.470, -0.268, 2.885,
-		0.582, 0.0, -2.459,
-		0.907, 0.0, -2.217,
-		1.123, 0.0, -1.202,
-		1.200, 0.0, -0.005,
-		1.123, 0.0, 1.192,
-		0.907, 0.0, 2.207,
-		0.582, 0.0, 2.885,
+		0.582, 0, -2.459,
+		0.907, 0, -2.217,
+		1.123, 0, -1.202,
+		1.200, 0, -0.005,
+		1.123, 0, 1.192,
+		0.907, 0, 2.207,
+		0.582, 0, 2.885,
 		0.470, 0.268, -2.459,
 		0.700, 0.496, -2.217,
 		0.853, 0.649, -1.202,
@@ -989,7 +1061,7 @@ function createBoatModel() {
 		0.853, 0.649, 1.192,
 		0.700, 0.496, 2.207,
 		0.470, 0.268, 2.885,
-		0.200, 0.0, 3.076,
+		0.200, 0, 3.076,
 		0.200, 0.380, -2.459,
 		0.200, 0.702, -2.217,
 		0.391, 0.918, -1.202,
@@ -1003,30 +1075,30 @@ function createBoatModel() {
 		0.200, -0.918, 1.192,
 		0.200, -0.702, 2.207,
 		0.200, -0.380, 2.885,
-		0.0, -0.380, -2.459,
-		0.0, 0.0, -2.565,
-		0.0, 0.0, 3.076,
-		0.0, 0.380, -2.459,
-		0.0, 0.702, -2.217,
-		0.0, 0.918, -1.202,
-		0.0, 0.993, 0.277,
-		0.0, 0.918, 1.192,
-		0.0, 0.702, 2.207,
-		0.0, 0.380, 2.885,
-		0.0, -0.702, -2.217,
-		0.0, -0.918, -1.202,
-		0.0, -0.993, -0.005,
-		0.0, -0.918, 1.192,
-		0.0, -0.702, 2.207,
-		0.0, -0.380, 2.885,
+		0, -0.380, -2.459,
+		0, 0, -2.565,
+		0, 0, 3.076,
+		0, 0.380, -2.459,
+		0, 0.702, -2.217,
+		0, 0.918, -1.202,
+		0, 0.993, 0.277,
+		0, 0.918, 1.192,
+		0, 0.702, 2.207,
+		0, 0.380, 2.885,
+		0, -0.702, -2.217,
+		0, -0.918, -1.202,
+		0, -0.993, -0.005,
+		0, -0.918, 1.192,
+		0, -0.702, 2.207,
+		0, -0.380, 2.885,
 		0.279, 1.761, -1.202,
 		0.279, 1.761, -0.005,
-		0.0, 1.761, -1.202,
-		0.0, 1.761, -0.005,
+		0, 1.761, -1.202,
+		0, 1.761, -0.005,
 		0.122, 1.919, -1.039,
 		0.122, 1.919, -0.477,
-		0.0, 1.919, -1.039,
-		0.0, 1.919, -0.477,
+		0, 1.919, -1.039,
+		0, 1.919, -0.477,
 	], indicies = [
 		23, 36, 8,
 		35, 6, 7,
@@ -1136,19 +1208,19 @@ function createBoatModel() {
 
 function createCoinModel() {
 	var vertices = [
-		0.0, 0.063, -0.637,
+		0, 0.063, -0.637,
 		0.588, -0.063, -0.243,
 		0.637, -0.063, 0.0,
 		0.588, -0.063, 0.243,
 		0.450, -0.063, 0.450,
 		0.243, -0.063, 0.588,
-		0.0, -0.063, 0.637,
-		0.0, -0.063, -0.637,
-		0.0, 0.063, 0.637,
+		0, -0.063, 0.637,
+		0, -0.063, -0.637,
+		0, 0.063, 0.637,
 		0.243, 0.063, 0.588,
 		0.450, 0.063, 0.450,
 		0.588, 0.063, 0.243,
-		0.637, 0.063, 0.0,
+		0.637, 0.063, 0,
 		0.588, 0.063, -0.243,
 		0.450, 0.063, -0.450,
 		0.243, 0.063, -0.588,
@@ -1212,6 +1284,15 @@ function createPyramidModel() {
 		// bottom
 		1, 3, 2,
 		2, 3, 4])
+}
+
+function createBubbles() {
+	bubbleLast = 0
+	bubbleModel = createBubbleModel()
+	bubblesLength = 100
+	for (var i = bubblesLength; i--;) {
+		bubbles[i] = new FA(im)
+	}
 }
 
 function createPlayer() {
@@ -1313,6 +1394,7 @@ function newGame() {
 
 	createFloor(11)
 	createEntities()
+	createBubbles()
 
 	translate(m, im, 0, -.5, 0)
 	player.matrix = new FA(m)
