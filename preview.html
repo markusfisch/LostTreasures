@@ -31,36 +31,17 @@ canvas {
 	text-align: center;
 	line-height: 200%;
 }
-#Controls {
-	position: fixed;
-	width: 100%;
-	bottom: 0;
-	margin: 0; padding: 1em 0;
-	font: 200% sans-serif; color: #fff;
-}
-#Controls td {
-	text-align: center;
+#Text a {
+	color: #fff;
 }
 .Warning {
 	color: #f22;
-}
-#Text a {
-	color: #fff;
 }
 </style>
 </head>
 <body>
 <canvas id="Canvas">Sorry, this browser cannot render this content.</canvas>
 <div id="Text"></div>
-<table id="Controls">
-<tr>
-<td>&larr;</td>
-<td>&uarr;</td>
-<td>↧</td>
-<td>&darr;</td>
-<td>&rarr;</td>
-</tr>
-</table>
 <script id="SeaVertexShader" type="x-shader/x-vertex">
 attribute vec3 vertex;
 attribute vec3 normal;

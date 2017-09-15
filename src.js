@@ -483,24 +483,24 @@ function input() {
 		dive = false
 
 	if (pointersLength > 0) {
-		var bw = width / 5
 		for (var i = pointersLength; i--;) {
-			switch (pointersX[i] / bw | 0) {
-				case 0:
-					left = true
-					break
-				case 1:
-					forward = true
-					break
-				case 2:
-					dive = true
-					break
-				case 3:
-					backward = true
-					break
-				case 4:
-					right = true
-					break
+			var px = pointersX[i],
+				py = pointersY[i]
+
+			if (px < -.5) {
+				left = true
+			} else if (px > .5) {
+				right = true
+			}
+
+			if (py < -.5) {
+				forward = true
+			} else if (py > .5) {
+				backward = true
+			}
+
+			if (px > -.5 && px < .5 && py > -.5 && py < .5) {
+				dive = true
 			}
 		}
 	} else {
@@ -566,6 +566,17 @@ function setPointer(event, down) {
 		pointersLength = 1
 		pointersX[0] = event.pageX
 		pointersY[0] = event.pageY
+	}
+
+	if (down) {
+		// map to WebGL coordinates
+		var xf = 2 / width,
+			yf = 2 / height
+
+		for (var i = pointersLength; i--;) {
+			pointersX[i] = pointersX[i] * xf - 1
+			pointersY[i] = -(pointersY[i] * yf - 1)
+		}
 	}
 
 	event.preventDefault()
