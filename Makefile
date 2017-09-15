@@ -13,4 +13,4 @@ clean:
 	rm -f $(BUILD) $(ARCHIVE) gfx/*.obj gfx/*.mtl
 
 up: $(BUILD)
-	scp $(BUILD) hhsw.de@ssh.strato.de:sites/proto/js13k2017/
+	scp $(BUILD) hhsw.de@ssh.strato.de:sites/LostTreasures/
