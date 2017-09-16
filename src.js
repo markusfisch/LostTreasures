@@ -967,16 +967,38 @@ function createFloorModel(power, roughness, amplification) {
 }
 
 function mirrorModel(vertices, indicies) {
-	var n = vertices.length / 3
-	for (var i = 0, l = vertices.length; i < l;) {
-		vertices.push(-vertices[i++])
-		vertices.push(vertices[i++])
-		vertices.push(vertices[i++])
+	var verticesLength = vertices.length,
+		lastVertice = verticesLength / 3,
+		firstNewIndex = indicies.length
+	for (var i = 0; i < firstNewIndex; i += 3) {
+		indicies.push(lastVertice + indicies[i + 2])
+		indicies.push(lastVertice + indicies[i + 1])
+		indicies.push(lastVertice + indicies[i])
 	}
-	for (var i = 0, l = indicies.length; i < l; i += 3) {
-		indicies.push(n + indicies[i + 2])
-		indicies.push(n + indicies[i + 1])
-		indicies.push(n + indicies[i])
+	var indiciesLength = indicies.length
+	for (var i = 0; i < verticesLength;) {
+		var x = vertices[i++],
+			y = vertices[i++],
+			z = vertices[i++]
+		// don't copy vertices at axis of reflection to avoid
+		// extra normals there
+		if (x == 0) {
+			var replacement = (i - 3) / 3 | 0,
+				needle = lastVertice + replacement
+			for (var j = firstNewIndex; j < indiciesLength; ++j) {
+				var idx = indicies[j]
+				if (idx > needle) {
+					--indicies[j]
+				} else if (idx == needle) {
+					indicies[j] = replacement
+				}
+			}
+			--lastVertice
+		} else {
+			vertices.push(-x)
+			vertices.push(y)
+			vertices.push(z)
+		}
 	}
 }
 
