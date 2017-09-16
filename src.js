@@ -1289,7 +1289,7 @@ function createPyramidModel() {
 function createBubbles() {
 	bubbleLast = 0
 	bubbleModel = createBubbleModel()
-	bubblesLength = 100
+	bubblesLength = 32
 	for (var i = bubblesLength; i--;) {
 		bubbles[i] = new FA(im)
 	}
