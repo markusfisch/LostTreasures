@@ -671,62 +671,6 @@ function resize() {
 	setProjectionMatrix()
 }
 
-function cacheUniformLocations(program, uniforms) {
-	if (program.uniforms === undefined) {
-		program.uniforms = {}
-	}
-	for (var i = 0, l = uniforms.length; i < l; ++i) {
-		var name = uniforms[i]
-		program.uniforms[name] = gl.getUniformLocation(program, name)
-	}
-}
-
-function cacheAttribLocations(program, attribs) {
-	if (program.attribs === undefined) {
-		program.attribs = {}
-	}
-	for (var i = 0, l = attribs.length; i < l; ++i) {
-		var name = attribs[i]
-		program.attribs[name] = gl.getAttribLocation(program, name)
-		gl.enableVertexAttribArray(program.attribs[name])
-	}
-}
-
-function compileShader(src, type) {
-	var shader = gl.createShader(type)
-	gl.shaderSource(shader, src)
-	gl.compileShader(shader)
-	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
-}
-
-function linkProgram(vs, fs) {
-	var p = gl.createProgram()
-	if (p) {
-		gl.attachShader(p, vs)
-		gl.attachShader(p, fs)
-		gl.linkProgram(p)
-
-		if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-			gl.deleteProgram(p)
-			p = null
-		}
-	}
-	return p
-}
-
-function buildProgram(vertexSource, fragmentSource) {
-	var p, vs, fs
-	if ((vs = compileShader(vertexSource, gl.VERTEX_SHADER))) {
-		if ((fs = compileShader(fragmentSource, gl.FRAGMENT_SHADER))) {
-			p = linkProgram(vs, fs)
-			gl.deleteShader(fs)
-		}
-
-		gl.deleteShader(vs)
-	}
-	return p
-}
-
 function calculateNormals(vertices, indicies) {
 	var normals = []
 
@@ -788,6 +732,42 @@ function createModel(vertices, indicies) {
 		gl.STATIC_DRAW)
 
 	return model
+}
+
+function mirrorModel(vertices, indicies) {
+	var verticesLength = vertices.length,
+		lastVertice = verticesLength / 3,
+		firstNewIndex = indicies.length
+	for (var i = 0; i < firstNewIndex; i += 3) {
+		indicies.push(lastVertice + indicies[i + 2])
+		indicies.push(lastVertice + indicies[i + 1])
+		indicies.push(lastVertice + indicies[i])
+	}
+	var indiciesLength = indicies.length
+	for (var i = 0; i < verticesLength;) {
+		var x = vertices[i++],
+			y = vertices[i++],
+			z = vertices[i++]
+		// don't copy vertices at axis of reflection to avoid
+		// extra normals there
+		if (x == 0) {
+			var replacement = (i - 3) / 3 | 0,
+				needle = lastVertice + replacement
+			for (var j = firstNewIndex; j < indiciesLength; ++j) {
+				var idx = indicies[j]
+				if (idx > needle) {
+					--indicies[j]
+				} else if (idx == needle) {
+					indicies[j] = replacement
+				}
+			}
+			--lastVertice
+		} else {
+			vertices.push(-x)
+			vertices.push(y)
+			vertices.push(z)
+		}
+	}
 }
 
 function calculateMapIndicies(size) {
@@ -885,6 +865,33 @@ function createHeightMap(size, roughness) {
 	return map
 }
 
+function createFloorModel(power, roughness, amplification) {
+	var vertices = [],
+		size = M.pow(2, power) + 1,
+		offset = size >> 1,
+		max = .5
+
+	var heightMap = createHeightMap(size, roughness)
+	for (var i = 0, z = 0; z < size; ++z) {
+		for (var x = 0; x < size; ++x) {
+			var h = heightMap[i++] * amplification
+			max = M.max(max, h)
+			vertices.push(x - offset)
+			vertices.push(h)
+			vertices.push(z - offset)
+		}
+	}
+
+	expandToHorizon(vertices, offset, true)
+
+	var model = createModel(vertices, calculateMapIndicies(size))
+	model.heightMap = heightMap
+	model.size = size
+	model.radius = offset
+	model.max = max
+	return model
+}
+
 function createSeaModel(power) {
 	var vertices = [],
 		size = M.pow(2, power) + 1,
@@ -937,69 +944,6 @@ function createSeaModel(power) {
 	model.radius = offset
 	seaHalf = offset
 	return model
-}
-
-function createFloorModel(power, roughness, amplification) {
-	var vertices = [],
-		size = M.pow(2, power) + 1,
-		offset = size >> 1,
-		max = .5
-
-	var heightMap = createHeightMap(size, roughness)
-	for (var i = 0, z = 0; z < size; ++z) {
-		for (var x = 0; x < size; ++x) {
-			var h = heightMap[i++] * amplification
-			max = M.max(max, h)
-			vertices.push(x - offset)
-			vertices.push(h)
-			vertices.push(z - offset)
-		}
-	}
-
-	expandToHorizon(vertices, offset, true)
-
-	var model = createModel(vertices, calculateMapIndicies(size))
-	model.heightMap = heightMap
-	model.size = size
-	model.radius = offset
-	model.max = max
-	return model
-}
-
-function mirrorModel(vertices, indicies) {
-	var verticesLength = vertices.length,
-		lastVertice = verticesLength / 3,
-		firstNewIndex = indicies.length
-	for (var i = 0; i < firstNewIndex; i += 3) {
-		indicies.push(lastVertice + indicies[i + 2])
-		indicies.push(lastVertice + indicies[i + 1])
-		indicies.push(lastVertice + indicies[i])
-	}
-	var indiciesLength = indicies.length
-	for (var i = 0; i < verticesLength;) {
-		var x = vertices[i++],
-			y = vertices[i++],
-			z = vertices[i++]
-		// don't copy vertices at axis of reflection to avoid
-		// extra normals there
-		if (x == 0) {
-			var replacement = (i - 3) / 3 | 0,
-				needle = lastVertice + replacement
-			for (var j = firstNewIndex; j < indiciesLength; ++j) {
-				var idx = indicies[j]
-				if (idx > needle) {
-					--indicies[j]
-				} else if (idx == needle) {
-					indicies[j] = replacement
-				}
-			}
-			--lastVertice
-		} else {
-			vertices.push(-x)
-			vertices.push(y)
-			vertices.push(z)
-		}
-	}
 }
 
 function createBubbleModel() {
@@ -1317,23 +1261,9 @@ function createBubbles() {
 	}
 }
 
-function createPlayer() {
-	player = {
-		model: createBoatModel(),
-		prop: createPropModel(),
-		matrix: new FA(im),
-		color: [1, 1, 1, 1],
-		roll: 0,
-		v: 0,
-		depth: 0,
-		tilt: 0,
-		maxSpeed: .15,
-		maxTurn: .01
-	}
-}
-
 function createEntities() {
-	var pyramids = [[-10, -40, 9], [-15, -25, 5]]
+	var pyramids = [[-10, -40, 9], [-15, -25, 5]],
+		pyramidModel = createPyramidModel()
 	for (var i in pyramids) {
 		var x = pyramids[i][0],
 			z = pyramids[i][1],
@@ -1343,7 +1273,7 @@ function createEntities() {
 		scale(m, m, s, h, s)
 		addToFloor(x, z, h)
 		entities.push({
-			model: createPyramidModel(),
+			model: pyramidModel,
 			matrix: new FA(m),
 			color: [.3, .2, .1, 1]
 		})
@@ -1372,18 +1302,6 @@ function createEntities() {
 	}
 
 	entitiesLength = entities.length
-}
-
-function createSea() {
-	var model = createSeaModel(6), mag = 1.75
-	sea = {
-		model: model,
-		matrix: new FA(im),
-		color: [.4, .7, .8, .3],
-		radius: model.radius * mag,
-		mag: mag
-	}
-	alignSea(0, 0)
 }
 
 function createFloor(mag) {
@@ -1428,6 +1346,54 @@ function newGame() {
 	updateView(player.matrix)
 }
 
+function createPlayer() {
+	player = {
+		model: createBoatModel(),
+		prop: createPropModel(),
+		matrix: new FA(im),
+		color: [1, 1, 1, 1],
+		roll: 0,
+		v: 0,
+		depth: 0,
+		tilt: 0,
+		maxSpeed: .15,
+		maxTurn: .01
+	}
+}
+
+function createSea() {
+	var model = createSeaModel(6), mag = 1.75
+	sea = {
+		model: model,
+		matrix: new FA(im),
+		color: [.4, .7, .8, .3],
+		radius: model.radius * mag,
+		mag: mag
+	}
+	alignSea(0, 0)
+}
+
+function cacheUniformLocations(program, uniforms) {
+	if (program.uniforms === undefined) {
+		program.uniforms = {}
+	}
+	for (var i = 0, l = uniforms.length; i < l; ++i) {
+		var name = uniforms[i]
+		program.uniforms[name] = gl.getUniformLocation(program, name)
+	}
+}
+
+function cacheAttribLocations(program, attribs) {
+	if (program.attribs === undefined) {
+		program.attribs = {}
+	}
+	for (var i = 0, l = attribs.length; i < l; ++i) {
+		var name = attribs[i]
+		program.attribs[name] = gl.getAttribLocation(program, name)
+		gl.enableVertexAttribArray(program.attribs[name])
+	}
+}
+
 function cacheLocations() {
 	var attribs = ['vertex', 'normal'],
 		uniforms = ['mvp', 'nm', 'light', 'color', 'sky', 'far']
@@ -1439,6 +1405,41 @@ function cacheLocations() {
 	uniforms.push('time')
 	uniforms.push('radius')
 	cacheUniformLocations(seaProgram, uniforms)
+}
+
+function compileShader(src, type) {
+	var shader = gl.createShader(type)
+	gl.shaderSource(shader, src)
+	gl.compileShader(shader)
+	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
+}
+
+function linkProgram(vs, fs) {
+	var p = gl.createProgram()
+	if (p) {
+		gl.attachShader(p, vs)
+		gl.attachShader(p, fs)
+		gl.linkProgram(p)
+
+		if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+			gl.deleteProgram(p)
+			p = null
+		}
+	}
+	return p
+}
+
+function buildProgram(vertexSource, fragmentSource) {
+	var p, vs, fs
+	if ((vs = compileShader(vertexSource, gl.VERTEX_SHADER))) {
+		if ((fs = compileShader(fragmentSource, gl.FRAGMENT_SHADER))) {
+			p = linkProgram(vs, fs)
+			gl.deleteShader(fs)
+		}
+
+		gl.deleteShader(vs)
+	}
+	return p
 }
 
 function createPrograms() {
