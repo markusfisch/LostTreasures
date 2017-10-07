@@ -495,7 +495,7 @@ function input() {
 
 	if (player.v != 0) {
 		move(p, -player.v)
-		player.v *= .94
+		player.v *= .99
 		if (M.abs(player.v) < .01) {
 			player.v = 0
 		}
