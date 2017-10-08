@@ -12,6 +12,7 @@ var M = Math,
 		0, 0, 1, 0,
 		0, 0, 0, 1]),
 	pm,
+	hudPm,
 	vm = new FA(im),
 	cm = new FA(im),
 	nm = new FA(16),
@@ -26,6 +27,9 @@ var M = Math,
 	sea,
 	floor,
 	player,
+	useTouchControls = false,
+	touchStick,
+	diveButton,
 	bubbleModel,
 	bubbleLast,
 	bubbleColor = [1, 1, 1, 1],
@@ -37,6 +41,9 @@ var M = Math,
 	coinsFound = 0,
 	width,
 	height,
+	ymax,
+	widthToGl,
+	heightToGl,
 	now,
 	factor,
 	last,
@@ -44,6 +51,7 @@ var M = Math,
 	pointersLength,
 	pointersX = [],
 	pointersY = [],
+	pointersId = [],
 	keysDown = []
 
 M.PI2 = M.PI2 || M.PI / 2
@@ -280,9 +288,13 @@ function dist(a, x, y, z) {
 	return dx*dx + dy*dy + dz*dz
 }
 
-function drawModel(mm, model, uniforms, color) {
-	multiply(mvp, vm, mm)
-	multiply(mvp, pm, mvp)
+function drawModel(mm, model, uniforms, color, hud) {
+	if (!hud) {
+		multiply(mvp, vm, mm)
+		multiply(mvp, pm, mvp)
+	} else {
+		multiply(mvp, hudPm, mm)
+	}
 
 	// we need to invert and transpose the model matrix so the
 	// normals are scaled correctly
@@ -302,6 +314,19 @@ function bindModel(attribs, model) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.normals)
 	gl.vertexAttribPointer(attribs.normal, 3, gl.FLOAT, gl.FALSE, 0, 0)
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
+}
+
+function drawControls(uniforms, attribs) {
+	var model = touchStick.model
+	bindModel(attribs, model)
+	translate(m, touchStick.matrix, touchStick.dx, touchStick.dy, 0)
+	drawModel(m, model, uniforms, touchStick.color, true)
+
+	var model = diveButton.model
+	bindModel(attribs, model)
+	var s = diveButton.scale
+	scale(m, diveButton.matrix, s, s, s)
+	drawModel(m, model, uniforms, diveButton.color, true)
 }
 
 function drawSea() {
@@ -407,7 +432,11 @@ function draw() {
 
 	drawPlayer(uniforms, attribs)
 	drawBubbles(uniforms, attribs)
+
 	// draw transparent objects over opaque ones and from back to front
+	if (useTouchControls) {
+		drawControls(uniforms, attribs)
+	}
 	drawSea()
 }
 
@@ -513,25 +542,44 @@ function input() {
 		right = false,
 		dive = false
 
-	if (pointersLength > 0) {
-		for (var i = pointersLength; i--;) {
-			var px = pointersX[i],
-				py = pointersY[i]
+	touchStick.dx = touchStick.dy = 0
+	diveButton.scale = 1
 
-			if (px < -.5) {
-				left = true
-			} else if (px > .5) {
+	if (useTouchControls && pointersLength > 0) {
+		var tol = .2, idx = touchStick.pointer
+		if (idx > -1) {
+			var dx = pointersX[idx] - touchStick.x,
+				dy = pointersY[idx] - touchStick.y,
+				dsq = dx*dx + dy*dy
+
+			if (dx > tol) {
 				right = true
+			} else if (dx < -tol) {
+				left = true
 			}
 
-			if (py < -.5) {
-				forward = true
-			} else if (py > .5) {
+			if (dy > tol) {
 				backward = true
+			} else if (dy < -tol) {
+				forward = true
 			}
 
-			if (px > -.5 && px < .5 && py > -.5 && py < .5) {
+			touchStick.dx = dx
+			touchStick.dy = dy
+		}
+
+		var dbx = diveButton.x,
+			dby = diveButton.y,
+			dbsq = diveButton.sizeSq
+		for (var i = pointersLength; i--;) {
+			var dx = pointersX[i] - dbx,
+				dy = pointersY[i] - dby,
+				dsq = dx*dx + dy*dy
+
+			if (dsq < dbsq) {
 				dive = true
+				diveButton.scale = .8
+				break
 			}
 		}
 	} else {
@@ -587,32 +635,48 @@ function run() {
 	draw()
 }
 
-function setPointer(event, down) {
-	if (!down) {
-		pointersLength = event.touches ? event.touches.length : 0
-	} else if (event.touches) {
-		var touches = event.touches
-		pointersLength = touches.length
+function getPointerOnTouchStick() {
+	var tsq = touchStick.sizeSq,
+		tx = touchStick.x + touchStick.dx,
+		ty = touchStick.y + touchStick.dy
 
+	for (var i = pointersLength; i--;) {
+		var dx = pointersX[i] - tx,
+			dy = pointersY[i] - ty,
+			dsq = dx*dx + dy*dy
+
+		if (dsq < tsq) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+function setPointer(event, down) {
+	var touches = event.touches
+	if (!down) {
+		pointersLength = touches ? touches.length : 0
+	} else if (event.touches) {
+		pointersLength = touches.length
 		for (var i = pointersLength; i--;) {
 			var t = touches[i]
 			pointersX[i] = t.pageX
 			pointersY[i] = t.pageY
+			pointersId[i] = t.identifier
 		}
 	} else {
 		pointersLength = 1
 		pointersX[0] = event.pageX
 		pointersY[0] = event.pageY
+		pointersId[0] = 0
 	}
 
 	if (down) {
 		// map to WebGL coordinates
-		var xf = 2 / width,
-			yf = 2 / height
-
 		for (var i = pointersLength; i--;) {
-			pointersX[i] = pointersX[i] * xf - 1
-			pointersY[i] = -(pointersY[i] * yf - 1)
+			pointersX[i] = pointersX[i] * widthToGl - 1
+			pointersY[i] = -(pointersY[i] * heightToGl - ymax)
 		}
 	}
 
@@ -624,6 +688,13 @@ function setPointer(event, down) {
 
 function pointerUp(event) {
 	setPointer(event, false)
+	var ct = event.changedTouches
+	for (var i = ct.length; i--;) {
+		if (ct[i].identifier === touchStick.identifier) {
+			touchStick.pointer = -1
+			break
+		}
+	}
 }
 
 function pointerMove(event) {
@@ -632,6 +703,13 @@ function pointerMove(event) {
 
 function pointerDown(event) {
 	setPointer(event, true)
+	if (touchStick.pointer < 0) {
+		var i = getPointerOnTouchStick()
+		if (i > -1) {
+			touchStick.identifier = event.touches[i].identifier
+			touchStick.pointer = i
+		}
+	}
 }
 
 function setKey(event, down) {
@@ -647,6 +725,26 @@ function keyDown(event) {
 	setKey(event, true)
 }
 
+function setControls() {
+	var size = M.min(ymax, 1) * .2,
+		padding = size * 2.5,
+		x = 1 - padding,
+		y = -(ymax - padding)
+
+	translate(m, im, x, y, 0)
+	scale(touchStick.matrix, m, size, size, 1)
+	touchStick.x = x
+	touchStick.y = y
+	touchStick.sizeSq = size * size
+
+	x = -1 + padding
+	translate(m, im, x, y, 0)
+	scale(diveButton.matrix, m, size, size, 1)
+	diveButton.x = x
+	diveButton.y = y
+	diveButton.sizeSq = size * size
+}
+
 function setProjectionMatrix() {
 	var aspect = width / height,
 		near = .1,
@@ -658,6 +756,12 @@ function setProjectionMatrix() {
 		0, f, 0, 0,
 		0, 0, (far + near) / r, -1,
 		0, 0, (2 * far * near) / r, 0])
+
+	hudPm = new FA([
+		1, 0, 0, 0,
+		0, aspect, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1])
 }
 
 function resize() {
@@ -668,7 +772,12 @@ function resize() {
 	gl.canvas.height = height
 	gl.viewport(0, 0, width, height)
 
+	ymax = height / width
+	widthToGl = 2 / width
+	heightToGl = ymax * 2 / height
+
 	setProjectionMatrix()
+	setControls()
 }
 
 function calculateNormals(vertices, indicies) {
@@ -1172,6 +1281,31 @@ function createBoatModel() {
 	return createModel(vertices, indicies)
 }
 
+function createButtonModel() {
+	var vertices = [
+		0, 0.988, 0,
+		0, -0.988, 0,
+		0.378, -0.913, 0,
+		0.699, -0.699, 0,
+		0.913, -0.378, 0,
+		0.988, 0, 0,
+		0.913, 0.378, 0,
+		0.699, 0.699, 0,
+		0.378, 0.913, 0,
+	], indicies = [
+		3, 7, 1,
+		1, 2, 3,
+		3, 4, 5,
+		5, 6, 7,
+		7, 8, 0,
+		0, 1, 7,
+		3, 5, 7,
+	]
+
+	mirrorModel(vertices, indicies)
+	return createModel(vertices, indicies)
+}
+
 function createCoinModel() {
 	var vertices = [
 		0, 0.063, -0.637,
@@ -1346,6 +1480,23 @@ function newGame() {
 	updateView(player.matrix)
 }
 
+function createControls() {
+	touchStick = {
+		model: createButtonModel(),
+		matrix: new FA(im),
+		color: [1, 1, 1, .1],
+		pointer: -1,
+		dx: 0,
+		dy: 0
+	}
+	diveButton = {
+		model: createButtonModel(),
+		matrix: new FA(im),
+		color: [1, 1, 1, .1],
+		scale: 1
+	}
+}
+
 function createPlayer() {
 	player = {
 		model: createBoatModel(),
@@ -1474,6 +1625,7 @@ function init() {
 	cacheLocations()
 	createSea()
 	createPlayer()
+	createControls()
 	newGame()
 
 	gl.enable(gl.DEPTH_TEST)
@@ -1493,6 +1645,7 @@ function init() {
 	D.onmouseout = pointerUp
 
 	if ('ontouchstart' in D) {
+		useTouchControls = true
 		D.ontouchstart = pointerDown
 		D.ontouchmove = pointerMove
 		D.ontouchend = pointerUp
