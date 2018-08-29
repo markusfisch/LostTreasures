@@ -4,7 +4,7 @@ ARCHIVE = archive.zip
 $(ARCHIVE): $(BUILD)
 	zip $@ $^
 	@ls -l $@
-	@echo "$$(( 10000000 / 13312 * $$(stat -f '%z' $@) / 100000 ))%"
+	@echo "$$((10000000 / 13312 * $$(stat -f '%z' $@) / 100000))%"
 
 $(BUILD): src.js preview.html
 	bash squeeze.sh > $(BUILD)
