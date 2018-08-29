@@ -288,16 +288,9 @@ function dist(a, x, y, z) {
 	return dx*dx + dy*dy + dz*dz
 }
 
-function drawModel(mm, model, uniforms, color, hud) {
-	if (!hud) {
-		multiply(mvp, vm, mm)
-		multiply(mvp, pm, mvp)
-	} else {
-		multiply(mvp, hudPm, mm)
-	}
-
-	// we need to invert and transpose the model matrix so the
-	// normals are scaled correctly
+function drawElements(mm, model, uniforms, color) {
+	// the model matrix needs to be inverted and transposed to correctly
+	// scale the normals
 	invert(nm, mm)
 	transpose(nm, nm)
 
@@ -306,6 +299,17 @@ function drawModel(mm, model, uniforms, color, hud) {
 	gl.uniform4fv(uniforms.color, color)
 
 	gl.drawElements(gl.TRIANGLES, model.count, gl.UNSIGNED_SHORT, 0)
+}
+
+function drawHud(mm, model, uniforms, color) {
+	multiply(mvp, hudPm, mm)
+	drawElements(mm, model, uniforms, color)
+}
+
+function drawModel(mm, model, uniforms, color) {
+	multiply(mvp, vm, mm)
+	multiply(mvp, pm, mvp)
+	drawElements(mm, model, uniforms, color)
 }
 
 function bindModel(attribs, model) {
@@ -320,13 +324,13 @@ function drawControls(uniforms, attribs) {
 	var model = touchStick.model
 	bindModel(attribs, model)
 	translate(m, touchStick.matrix, touchStick.dx, touchStick.dy, 0)
-	drawModel(m, model, uniforms, touchStick.color, true)
+	drawHud(m, model, uniforms, touchStick.color)
 
 	var model = diveButton.model
 	bindModel(attribs, model)
 	var s = diveButton.scale
 	scale(m, diveButton.matrix, s, s, s)
-	drawModel(m, model, uniforms, diveButton.color, true)
+	drawHud(m, model, uniforms, diveButton.color)
 }
 
 function drawSea() {
