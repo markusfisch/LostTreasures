@@ -1772,7 +1772,7 @@ function createPrograms() {
 	shadowProgram = buildProgram(
 		D.getElementById('LightVertexShader').textContent,
 		D.getElementById('LightFragmentShader').textContent)
-	cacheLocations(shadowProgram, ['vertex', 'normal'],
+	cacheLocations(shadowProgram, ['vertex'],
 		['lightProjMat', 'lightModelViewMat'])
 
 	program = buildProgram(
@@ -1795,8 +1795,13 @@ function createPrograms() {
 	controlsProgram = buildProgram(
 		D.getElementById('ControlsVertexShader').textContent,
 		D.getElementById('ControlsFragmentShader').textContent)
-	cacheLocations(controlsProgram, ['vertex', 'normal'], [
+	cacheLocations(controlsProgram, ['vertex'], [
 		'projMat', 'modelViewMat', 'color'])
+
+	// give normal attribute an index because drawElements() will
+	// refuse to draw anything when normal is unset because the
+	// ARRAY_BUFFER is bound to the normal array
+	shadowProgram.attribs.normal = controlsProgram.attribs.normal = 1
 }
 
 function createShadowBuffer() {

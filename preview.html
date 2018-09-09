@@ -46,15 +46,11 @@ canvas {
 <div id="Text"></div>
 <script id="LightVertexShader" type="x-shader/x-vertex">
 attribute vec3 vertex;
-attribute vec3 normal;
 
 uniform mat4 lightProjMat;
 uniform mat4 lightModelViewMat;
 
-void main (void) {
-	// keep `normal` or `drawElements()` won't work because the
-	// ARRAY_BUFFER was bound to a normal buffer
-	vec4(normal, 1.0);
+void main() {
 	gl_Position = lightProjMat * lightModelViewMat * vec4(vertex, 1.0);
 }
 </script>
@@ -79,7 +75,7 @@ vec4 encodeFloat(float depth) {
 	return comp;
 }
 
-void main (void) {
+void main() {
 	gl_FragColor = encodeFloat(gl_FragCoord.z);
 }
 </script>
@@ -210,15 +206,11 @@ void main() {
 </script>
 <script id="ControlsVertexShader" type="x-shader/x-vertex">
 attribute vec3 vertex;
-attribute vec3 normal;
 
 uniform mat4 projMat;
 uniform mat4 modelViewMat;
 
 void main() {
-	// keep `normal` or `drawElements()` won't work because the
-	// ARRAY_BUFFER was bound to a normal buffer
-	vec4(normal, 1.0);
 	gl_Position = projMat * modelViewMat * vec4(vertex, 1.);
 }
 </script>
