@@ -6,33 +6,40 @@ var M = Math,
 	FA = Float32Array,
 	text,
 	gl,
-	im = new FA([
+	idMat = new FA([
 		1, 0, 0, 0,
 		0, 1, 0, 0,
 		0, 0, 1, 0,
 		0, 0, 0, 1]),
-	pm,
-	hudPm,
-	vm = new FA(im),
-	cm = new FA(im),
-	nm = new FA(16),
-	mvp = new FA(im),
-	m = new FA(16),
-	far = 75,
+	projMat = new FA(idMat),
+	controlsProjMat,
+	viewMat = new FA(idMat),
+	modelViewMat = new FA(16),
+	tmpMat = new FA(16),
+	horizon = 75,
+	lightProjMat = new FA(idMat),
+	lightViewMat = new FA(idMat),
+	lightDirection = [0, 0, 0],
 	skyColor = [.43, .73, .96, 1],
-	lightDirection = [.5, .5, 1],
+	shadowFramebuffer,
+	shadowDepthTextureSize = 512,
+	shadowDepthTexture,
+	shadowProgram,
 	program,
 	seaProgram,
+	controlsProgram,
 	seaHalf,
 	sea,
 	floor,
 	player,
-	useTouchControls = false,
+	setModel,
+	drawModel,
+	showTouchControls = false,
 	touchStick,
 	diveButton,
 	bubbleModel,
 	bubbleLast,
-	bubbleColor = [1, 1, 1, 1],
+	bubbleColor = [1, 1, 1, .3],
 	bubblesLength = 0,
 	bubbles = [],
 	entitiesLength = 0,
@@ -288,66 +295,86 @@ function dist(a, x, y, z) {
 	return dx*dx + dy*dy + dz*dz
 }
 
-function drawElements(mm, model, uniforms, color) {
-	// the model matrix needs to be inverted and transposed to correctly
-	// scale the normals
-	invert(nm, mm)
-	transpose(nm, nm)
-
-	gl.uniformMatrix4fv(uniforms.mvp, gl.FALSE, mvp)
-	gl.uniformMatrix4fv(uniforms.nm, gl.FALSE, nm)
+function drawCameraModel(count, uniforms, color) {
 	gl.uniform4fv(uniforms.color, color)
-
-	gl.drawElements(gl.TRIANGLES, model.count, gl.UNSIGNED_SHORT, 0)
+	gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0)
 }
 
-function drawHud(mm, model, uniforms, color) {
-	multiply(mvp, hudPm, mm)
-	drawElements(mm, model, uniforms, color)
+function drawShadowModel(count) {
+	gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0)
 }
 
-function drawModel(mm, model, uniforms, color) {
-	multiply(mvp, vm, mm)
-	multiply(mvp, pm, mvp)
-	drawElements(mm, model, uniforms, color)
+function setCameraModel(uniforms, mm) {
+	multiply(modelViewMat, lightViewMat, mm)
+	gl.uniformMatrix4fv(uniforms.lightModelViewMat, false, modelViewMat)
+	multiply(modelViewMat, viewMat, mm)
+	gl.uniformMatrix4fv(uniforms.modelViewMat, false, modelViewMat)
+	// the model matrix needs to be inverted and transposed to
+	// scale the normals correctly
+	invert(modelViewMat, mm)
+	transpose(modelViewMat, modelViewMat)
+	gl.uniformMatrix4fv(uniforms.normalMat, false, modelViewMat)
+}
+
+function setShadowModel(uniforms, mm) {
+	multiply(modelViewMat, lightViewMat, mm)
+	gl.uniformMatrix4fv(uniforms.lightModelViewMat, false, modelViewMat)
 }
 
 function bindModel(attribs, model) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.vertices)
-	gl.vertexAttribPointer(attribs.vertex, 3, gl.FLOAT, gl.FALSE, 0, 0)
+	gl.vertexAttribPointer(attribs.vertex, 3, gl.FLOAT, false, 0, 0)
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.normals)
-	gl.vertexAttribPointer(attribs.normal, 3, gl.FLOAT, gl.FALSE, 0, 0)
+	gl.vertexAttribPointer(attribs.normal, 3, gl.FLOAT, false, 0, 0)
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
 }
 
-function drawControls(uniforms, attribs) {
+function drawTouchControls(uniforms, attribs) {
+	var uniforms = controlsProgram.uniforms,
+		attribs = controlsProgram.attribs
+
+	gl.useProgram(controlsProgram)
+	gl.uniformMatrix4fv(uniforms.projMat, false, controlsProjMat)
+
 	var model = touchStick.model
 	bindModel(attribs, model)
-	translate(m, touchStick.matrix, touchStick.dx, touchStick.dy, 0)
-	drawHud(m, model, uniforms, touchStick.color)
+	translate(tmpMat, touchStick.matrix, touchStick.dx, touchStick.dy, 0)
+	gl.uniformMatrix4fv(uniforms.modelViewMat, false, tmpMat)
+	drawCameraModel(model.count, uniforms, touchStick.color)
 
 	var model = diveButton.model
 	bindModel(attribs, model)
 	var s = diveButton.scale
-	scale(m, diveButton.matrix, s, s, s)
-	drawHud(m, model, uniforms, diveButton.color)
+	scale(tmpMat, diveButton.matrix, s, s, s)
+	gl.uniformMatrix4fv(uniforms.modelViewMat, false, tmpMat)
+	drawCameraModel(model.count, uniforms, diveButton.color)
 }
 
 function drawSea() {
-	gl.useProgram(seaProgram)
-
 	var uniforms = seaProgram.uniforms,
 		attribs = seaProgram.attribs
 
-	gl.uniform3fv(uniforms.light, lightDirection)
+	gl.useProgram(seaProgram)
+	gl.uniformMatrix4fv(uniforms.projMat, false, projMat)
+	gl.uniform3fv(uniforms.lightDirection, lightDirection)
 	gl.uniform4fv(uniforms.sky, skyColor)
-	gl.uniform1f(uniforms.far, far)
+	gl.uniform1f(uniforms.far, horizon)
 	gl.uniform1f(uniforms.time, (now - first) / 500)
 	gl.uniform1f(uniforms.radius, seaHalf)
 
 	var model = sea.model
 	bindModel(attribs, model)
-	drawModel(sea.matrix, model, uniforms, sea.color)
+
+	var mm = sea.matrix
+	multiply(modelViewMat, viewMat, mm)
+	gl.uniformMatrix4fv(uniforms.modelViewMat, false, modelViewMat)
+	// the model matrix needs to be inverted and transposed to
+	// scale the normals correctly
+	invert(modelViewMat, mm)
+	transpose(modelViewMat, modelViewMat)
+	gl.uniformMatrix4fv(uniforms.normalMat, false, modelViewMat)
+
+	drawModel(model.count, uniforms, sea.color)
 }
 
 function drawBubbles(uniforms, attribs) {
@@ -357,51 +384,119 @@ function drawBubbles(uniforms, attribs) {
 		if (bm[13] > -.5) {
 			continue
 		}
-		bm[13] -= -.2
-		drawModel(bm, bubbleModel, uniforms, bubbleColor)
+		bm[13] -= -.02
+		setModel(uniforms, bm)
+		drawModel(bubbleModel.count, uniforms, bubbleColor)
 	}
 }
 
 function drawPlayer(uniforms, attribs) {
-	// render player with separate matrix because the
-	// view matrix is generated from the player matrix
-	translate(m, player.matrix, 0, player.depth, 0)
-	rotate(m, m, player.tilt +
-		M.sin(player.roll += .1 * factor) *
-		(.05 - player.v / (player.maxSpeed * 10)), .2, .2, 1)
+	var model = player.model,
+		color = player.color
 
-	var model = player.model
 	bindModel(attribs, model)
-	drawModel(m, model, uniforms, player.color)
+	setModel(uniforms, player.boatMat)
+	drawModel(model.count, uniforms, color)
 
-	if (player.v != 0) {
-		rotate(m, m, now * .005, 0, 0, 1)
-	}
 	model = player.prop
+
 	bindModel(attribs, model)
-	drawModel(m, model, uniforms, player.color)
+	setModel(uniforms, player.propMat)
+	drawModel(model.count, uniforms, color)
+}
+
+function drawEntities(uniforms, attribs) {
+	for (var model, i = entitiesLength; i--;) {
+		var e = entities[i]
+		if (e.found) {
+			continue
+		}
+		var em = e.matrix
+		if (model != e.model) {
+			model = e.model
+			bindModel(attribs, model)
+		}
+		setModel(uniforms, em)
+		drawModel(model.count, uniforms, e.color)
+	}
 }
 
 function drawFloor(uniforms, attribs) {
-	var model = floor.model,
-		matrix = floor.matrix
+	var model = floor.model
 	bindModel(attribs, model)
-	drawModel(matrix, model, uniforms, floor.color)
+	setModel(uniforms, floor.matrix)
+	drawModel(model.count, uniforms, floor.color)
 }
 
-function draw() {
-	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-	gl.useProgram(program)
-
+function drawCameraView() {
 	var uniforms = program.uniforms,
 		attribs = program.attribs
 
-	gl.uniform3fv(uniforms.light, lightDirection)
+	gl.useProgram(program)
+	gl.viewport(0, 0, width, height)
+	gl.clearColor(skyColor[0], skyColor[1], skyColor[2], skyColor[3])
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+	gl.uniformMatrix4fv(uniforms.projMat, false, projMat)
+	gl.uniformMatrix4fv(uniforms.lightProjMat, false, lightProjMat)
+	gl.uniform3fv(uniforms.lightDirection, lightDirection)
 	gl.uniform4fv(uniforms.sky, skyColor)
-	gl.uniform1f(uniforms.far, far)
+	gl.uniform1f(uniforms.far, horizon)
+
+	gl.activeTexture(gl.TEXTURE0)
+	gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture)
+	gl.uniform1i(uniforms.shadowDepthTexture, 0)
 
 	drawFloor(uniforms, attribs)
+	drawEntities(uniforms, attribs)
+	drawPlayer(uniforms, attribs)
+	drawBubbles(uniforms, attribs)
 
+	// draw transparent objects over opaque ones and from back to front
+	drawSea()
+	showTouchControls && drawTouchControls(uniforms, attribs)
+}
+
+function drawShadowMap() {
+	var attribs = shadowProgram.attribs,
+		uniforms = shadowProgram.uniforms
+
+	gl.useProgram(shadowProgram)
+	gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFramebuffer)
+	gl.viewport(0, 0, shadowDepthTextureSize, shadowDepthTextureSize)
+	gl.clearColor(0, 0, 0, 1)
+	gl.clearDepth(1)
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+	gl.uniformMatrix4fv(uniforms.lightProjMat, false, lightProjMat)
+
+	drawFloor(uniforms, attribs)
+	drawEntities(uniforms, attribs)
+	drawPlayer(uniforms, attribs)
+	drawBubbles(uniforms, attribs)
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+}
+
+function draw() {
+	setModel = setShadowModel
+	drawModel = drawShadowModel
+	drawShadowMap()
+	setModel = setCameraModel
+	drawModel = drawCameraModel
+	drawCameraView()
+}
+
+function updateLightView(x, z) {
+	translate(lightViewMat, idMat, 0, 0, -40)
+	rotate(lightViewMat, lightViewMat, M.PI2 * .5, 1, -1, 0)
+	translate(lightViewMat, lightViewMat, -x, 0, -z)
+	lightDirection[0] = lightViewMat[2]
+	lightDirection[1] = lightViewMat[6]
+	lightDirection[2] = lightViewMat[10]
+}
+
+function update() {
 	var pm = player.matrix,
 		px = pm[12],
 		py = player.depth,
@@ -424,30 +519,30 @@ function draw() {
 			}
 			continue
 		}
-		if (model != e.model) {
-			model = e.model
-			bindModel(attribs, model)
-		}
-		drawModel(em, model, uniforms, e.color)
 		if (e.update) {
 			e.update()
 		}
 	}
 
-	drawPlayer(uniforms, attribs)
-	drawBubbles(uniforms, attribs)
+	// render boat with separate matrix because the
+	// view matrix is generated from the player matrix
+	var boatMat = player.boatMat,
+		velo = player.v
+	translate(boatMat, pm, 0, py, 0)
+	rotate(boatMat, boatMat, player.tilt +
+		M.sin(player.roll += .1 * (10 + M.max(py, -10)) / 10) *
+		(.05 - velo / (player.maxSpeed * 10)), .2, .2, 1)
 
-	// draw transparent objects over opaque ones and from back to front
-	if (useTouchControls) {
-		drawControls(uniforms, attribs)
-	}
-	drawSea()
+	player.propRot += velo
+	rotate(player.propMat, boatMat, player.propRot, 0, 0, 1)
+
+	updateLightView(px, pz)
 }
 
-function updateView(p) {
-	invert(vm, p)
-	translate(m, im, 0, 6, -30)
-	multiply(vm, m, vm)
+function updateView(mat) {
+	invert(viewMat, mat)
+	translate(tmpMat, idMat, 0, 6, -30)
+	multiply(viewMat, tmpMat, viewMat)
 }
 
 function getFloorOffset(x, z) {
@@ -477,15 +572,15 @@ function alignSea(x, z) {
 		sr = sea.radius,
 		sx = M.round(x / sr) * sr,
 		sz = M.round(z / sr) * sr
-	translate(sm, im, sx, 0, sz)
+	translate(sm, idMat, sx, 0, sz)
 	scale(sm, sm, ss, 1, ss)
 }
 
-function move(p, step) {
-	translate(p, p, 0, 0, step)
+function move(mat, step) {
+	translate(mat, mat, 0, 0, step)
 	var fr = floor.radius,
-		x = p[12],
-		z = p[14]
+		x = mat[12],
+		z = mat[14]
 	if (x < -fr || x > fr || z < -fr || z > fr) {
 		if (!text.warning) {
 			text.innerHTML =
@@ -499,8 +594,8 @@ function move(p, step) {
 	alignSea(x, z)
 }
 
-function turn(p, rad) {
-	rotate(p, p, rad, 0, 1, 0)
+function turn(mat, rad) {
+	rotate(mat, mat, rad, 0, 1, 0)
 	player.tilt += rad * 4
 }
 
@@ -508,7 +603,7 @@ function addBubble(x, y, z) {
 	for (var i = bubblesLength; i--;) {
 		var bm = bubbles[i]
 		if (bm[13] > -.5) {
-			translate(bm, im,
+			translate(bm, idMat,
 				x + (M.random() * 2 - 1),
 				y,
 				z + (M.random() * 2 - 1))
@@ -522,12 +617,12 @@ function input() {
 		W.location.reload(true)
 	}
 
-	var p = player.matrix,
+	var pm = player.matrix,
 		s = player.maxSpeed,
 		a = player.maxTurn
 
 	if (player.v != 0) {
-		move(p, -player.v)
+		move(pm, -player.v)
 		player.v *= .99
 		if (M.abs(player.v) < .01) {
 			player.v = 0
@@ -549,7 +644,7 @@ function input() {
 	touchStick.dx = touchStick.dy = 0
 	diveButton.scale = 1
 
-	if (useTouchControls && pointersLength > 0) {
+	if (showTouchControls && pointersLength > 0) {
 		var tol = .2, idx = touchStick.pointer
 		if (idx > -1) {
 			var dx = pointersX[idx] - touchStick.x,
@@ -595,9 +690,9 @@ function input() {
 	}
 
 	if (left) {
-		turn(p, a)
+		turn(pm, a)
 	} else if (right) {
-		turn(p, -a)
+		turn(pm, -a)
 	} else {
 		s *= 1.5
 	}
@@ -608,8 +703,8 @@ function input() {
 		player.v = s
 	}
 
-	var px = p[12],
-		pz = p[14],
+	var px = pm[12],
+		pz = pm[14],
 		h = getFloorHeight(px, pz),
 		d = player.depth - 2
 	if (dive && h < d) {
@@ -625,7 +720,7 @@ function input() {
 		}
 	}
 
-	updateView(p)
+	updateView(pm)
 }
 
 function run() {
@@ -636,6 +731,7 @@ function run() {
 	last = now
 
 	input()
+	update()
 	draw()
 }
 
@@ -693,10 +789,12 @@ function setPointer(event, down) {
 function pointerUp(event) {
 	setPointer(event, false)
 	var ct = event.changedTouches
-	for (var i = ct.length; i--;) {
-		if (ct[i].identifier === touchStick.identifier) {
-			touchStick.pointer = -1
-			break
+	if (ct) {
+		for (var i = ct.length; i--;) {
+			if (ct[i].identifier === touchStick.identifier) {
+				touchStick.pointer = -1
+				break
+			}
 		}
 	}
 }
@@ -707,7 +805,7 @@ function pointerMove(event) {
 
 function pointerDown(event) {
 	setPointer(event, true)
-	if (touchStick.pointer < 0) {
+	if (showTouchControls && touchStick.pointer < 0) {
 		var i = getPointerOnTouchStick()
 		if (i > -1) {
 			touchStick.identifier = event.touches[i].identifier
@@ -735,33 +833,67 @@ function setControls() {
 		x = 1 - padding,
 		y = -(ymax - padding)
 
-	translate(m, im, x, y, 0)
-	scale(touchStick.matrix, m, size, size, 1)
+	translate(tmpMat, idMat, x, y, 0)
+	scale(touchStick.matrix, tmpMat, size, size, 1)
 	touchStick.x = x
 	touchStick.y = y
 	touchStick.sizeSq = size * size
 
 	x = -1 + padding
-	translate(m, im, x, y, 0)
-	scale(diveButton.matrix, m, size, size, 1)
+	translate(tmpMat, idMat, x, y, 0)
+	scale(diveButton.matrix, tmpMat, size, size, 1)
 	diveButton.x = x
 	diveButton.y = y
 	diveButton.sizeSq = size * size
 }
 
+function setOrthogonal(out, l, r, b, t, near, far) {
+	var lr = 1 / (l - r),
+		bt = 1 / (b - t),
+		nf = 1 / (near - far);
+	out[0] = -2 * lr
+	out[1] = 0
+	out[2] = 0
+	out[3] = 0
+	out[4] = 0
+	out[5] = -2 * bt
+	out[6] = 0
+	out[7] = 0
+	out[8] = 0
+	out[9] = 0
+	out[10] = 2 * nf
+	out[11] = 0
+	out[12] = (l + r) * lr
+	out[13] = (t + b) * bt
+	out[14] = (far + near) * nf
+	out[15] = 1
+}
+
+function setPerspective(out, fov, aspect, near, far) {
+	var f = 1 / M.tan(fov),
+		d = near - far
+	out[0] = f / aspect
+	out[1] = 0
+	out[2] = 0
+	out[3] = 0
+	out[4] = 0
+	out[5] = f
+	out[6] = 0
+	out[7] = 0
+	out[8] = 0
+	out[9] = 0
+	out[10] = (far + near) / d
+	out[11] = -1
+	out[12] = 0
+	out[13] = 0
+	out[14] = (2 * far * near) / d
+	out[15] = 0
+}
+
 function setProjectionMatrix() {
-	var aspect = width / height,
-		near = .1,
-		r = near - far,
-		f = 1 / M.tan(M.PI * .125)
-
-	pm = new FA([
-		f / aspect, 0, 0, 0,
-		0, f, 0, 0,
-		0, 0, (far + near) / r, -1,
-		0, 0, (2 * far * near) / r, 0])
-
-	hudPm = new FA([
+	var aspect = width / height
+	setPerspective(projMat, M.PI * .125, aspect, .1, horizon)
+	controlsProjMat = new FA([
 		1, 0, 0, 0,
 		0, aspect, 0, 0,
 		0, 0, 1, 0,
@@ -774,7 +906,6 @@ function resize() {
 
 	gl.canvas.width = width
 	gl.canvas.height = height
-	gl.viewport(0, 0, width, height)
 
 	ymax = height / width
 	widthToGl = 2 / width
@@ -1061,33 +1192,73 @@ function createSeaModel(power) {
 
 function createBubbleModel() {
 	var vertices = [
-		0, 0.080, -0.080,
-		0, 0, -0.113,
-		0, -0.080, -0.080,
-		0.069, 0.080, -0.040,
-		0.098, 0, -0.056,
-		0.069, -0.080, -0.040,
-		0.069, 0.080, 0.040,
-		0.098, 0, 0.056,
-		0.069, -0.080, 0.040,
-		0, 0.080, 0.080,
-		0, 0, 0.113,
-		0, -0.080, 0.080,
-		0, 0.113, 0,
-		0, -0.113, 0,
+		0.044, -0.027, 0.085,
+		0.044, 0.072, 0.052,
+		0.044, 0.072, -0.052,
+		0.044, -0.027, -0.085,
+		0.044, -0.089, 0,
+		0.100, 0, 0,
+		0, -0.095, 0.030,
+		0, -0.095, -0.030,
+		0, 0, 0.100,
+		0, -0.058, 0.080,
+		0, 0.095, 0.030,
+		0, 0.058, 0.080,
+		0, 0.058, -0.080,
+		0, 0.095, -0.030,
+		0, -0.058, -0.080,
+		0, 0, -0.100,
+		0.052, -0.068, 0.050,
+		0.052, 0.026, 0.080,
+		0.052, 0.085, 0,
+		0.052, 0.026, -0.080,
+		0.052, -0.068, -0.050,
+		0.085, -0.016, 0.050,
+		0.085, -0.052, 0,
+		0.085, 0.042, 0.030,
+		0.085, 0.042, -0.030,
+		0.085, -0.016, -0.050,
 	], indicies = [
-		13, 2, 5,
-		1, 0, 3,
-		2, 1, 4,
-		0, 12, 3,
-		13, 5, 8,
-		4, 3, 6,
-		5, 4, 7,
-		3, 12, 6,
-		13, 8, 11,
-		7, 6, 9,
-		8, 7, 10,
-		6, 12, 9,
+		0, 16, 21,
+		1, 17, 23,
+		2, 18, 24,
+		3, 19, 25,
+		4, 20, 22,
+		22, 25, 5,
+		22, 20, 25,
+		20, 3, 25,
+		25, 24, 5,
+		25, 19, 24,
+		19, 2, 24,
+		24, 23, 5,
+		24, 18, 23,
+		18, 1, 23,
+		23, 21, 5,
+		23, 17, 21,
+		17, 0, 21,
+		21, 22, 5,
+		21, 16, 22,
+		16, 4, 22,
+		7, 20, 4,
+		7, 14, 20,
+		14, 3, 20,
+		15, 19, 3,
+		15, 12, 19,
+		12, 2, 19,
+		13, 18, 2,
+		13, 10, 18,
+		10, 1, 18,
+		11, 17, 1,
+		11, 8, 17,
+		8, 0, 17,
+		9, 16, 0,
+		9, 6, 16,
+		6, 4, 16,
+		14, 15, 3,
+		12, 13, 2,
+		10, 11, 1,
+		8, 9, 0,
+		6, 7, 4,
 	]
 
 	mirrorModel(vertices, indicies)
@@ -1395,7 +1566,7 @@ function createBubbles() {
 	bubbleModel = createBubbleModel()
 	bubblesLength = 32
 	for (var i = bubblesLength; i--;) {
-		bubbles[i] = new FA(im)
+		bubbles[i] = new FA(idMat)
 	}
 }
 
@@ -1407,12 +1578,12 @@ function createEntities() {
 			z = pyramids[i][1],
 			s = pyramids[i][2],
 			h = s * .66
-		translate(m, im, x, getFloorHeight(x, z), z)
-		scale(m, m, s, h, s)
+		translate(tmpMat, idMat, x, getFloorHeight(x, z), z)
+		scale(tmpMat, tmpMat, s, h, s)
 		addToFloor(x, z, h)
 		entities.push({
 			model: pyramidModel,
-			matrix: new FA(m),
+			matrix: new FA(tmpMat),
 			color: [.3, .2, .1, 1]
 		})
 	}
@@ -1425,11 +1596,11 @@ function createEntities() {
 		var x = -r + M.random() * fs,
 			z = -r + M.random() * fs,
 			y = getFloorHeight(x, z) + 2
-		translate(m, im, x, y, z)
-		rotate(m, m, M.random() * M.TAU, 1, 1, 1)
+		translate(tmpMat, idMat, x, y, z)
+		rotate(tmpMat, tmpMat, M.random() * M.TAU, 1, 1, 1)
 		entities.push({
 			model: coinModel,
-			matrix: new FA(m),
+			matrix: new FA(tmpMat),
 			color: coinColor,
 			found: false,
 			isTreasure: true,
@@ -1450,11 +1621,11 @@ function createFloor(mag) {
 	for (var i = hm.length; i--;) {
 		hm[i] = base + hm[i] * amp
 	}
-	translate(m, im, 0, base, 0)
-	scale(m, m, mag, 1, mag)
+	translate(tmpMat, idMat, 0, base, 0)
+	scale(tmpMat, tmpMat, mag, 1, mag)
 	floor = {
 		model: model,
-		matrix: new FA(m),
+		matrix: new FA(tmpMat),
 		color: [.3, .2, .1, 1],
 		radius: model.radius * mag,
 		mag: mag,
@@ -1474,8 +1645,8 @@ function newGame() {
 	createEntities()
 	createBubbles()
 
-	translate(m, im, 0, -.5, 0)
-	player.matrix = new FA(m)
+	translate(tmpMat, idMat, 0, -.5, 0)
+	player.matrix = new FA(tmpMat)
 	player.roll = 0
 	player.v = 0
 	player.depth = 0
@@ -1485,17 +1656,18 @@ function newGame() {
 }
 
 function createControls() {
+	var model = createButtonModel()
 	touchStick = {
-		model: createButtonModel(),
-		matrix: new FA(im),
+		model: model,
+		matrix: new FA(idMat),
 		color: [1, 1, 1, .1],
 		pointer: -1,
 		dx: 0,
 		dy: 0
 	}
 	diveButton = {
-		model: createButtonModel(),
-		matrix: new FA(im),
+		model: model,
+		matrix: new FA(idMat),
 		color: [1, 1, 1, .1],
 		scale: 1
 	}
@@ -1505,7 +1677,10 @@ function createPlayer() {
 	player = {
 		model: createBoatModel(),
 		prop: createPropModel(),
-		matrix: new FA(im),
+		matrix: new FA(idMat),
+		boatMat: new FA(idMat),
+		propMat: new FA(idMat),
+		propRot: 0,
 		color: [1, 1, 1, 1],
 		roll: 0,
 		v: 0,
@@ -1520,7 +1695,7 @@ function createSea() {
 	var model = createSeaModel(6), mag = 1.75
 	sea = {
 		model: model,
-		matrix: new FA(im),
+		matrix: new FA(idMat),
 		color: [.4, .7, .8, .3],
 		radius: model.radius * mag,
 		mag: mag
@@ -1533,8 +1708,12 @@ function cacheUniformLocations(program, uniforms) {
 		program.uniforms = {}
 	}
 	for (var i = 0, l = uniforms.length; i < l; ++i) {
-		var name = uniforms[i]
-		program.uniforms[name] = gl.getUniformLocation(program, name)
+		var name = uniforms[i],
+			loc = gl.getUniformLocation(program, name)
+		if (!loc) {
+			throw 'uniform "' + name + '" not found'
+		}
+		program.uniforms[name] = loc
 	}
 }
 
@@ -1543,68 +1722,107 @@ function cacheAttribLocations(program, attribs) {
 		program.attribs = {}
 	}
 	for (var i = 0, l = attribs.length; i < l; ++i) {
-		var name = attribs[i]
-		program.attribs[name] = gl.getAttribLocation(program, name)
-		gl.enableVertexAttribArray(program.attribs[name])
+		var name = attribs[i],
+			loc = gl.getAttribLocation(program, name)
+		if (loc < 0) {
+			throw 'attribute "' + name + '" not found'
+		}
+		gl.enableVertexAttribArray(loc)
+		program.attribs[name] = loc
 	}
 }
 
-function cacheLocations() {
-	var attribs = ['vertex', 'normal'],
-		uniforms = ['mvp', 'nm', 'light', 'color', 'sky', 'far']
-
+function cacheLocations(program, attribs, uniforms) {
 	cacheAttribLocations(program, attribs)
 	cacheUniformLocations(program, uniforms)
-
-	cacheAttribLocations(seaProgram, attribs)
-	uniforms.push('time')
-	uniforms.push('radius')
-	cacheUniformLocations(seaProgram, uniforms)
 }
 
 function compileShader(src, type) {
 	var shader = gl.createShader(type)
 	gl.shaderSource(shader, src)
 	gl.compileShader(shader)
-	return gl.getShaderParameter(shader, gl.COMPILE_STATUS) ? shader : null
+	var error = gl.getShaderInfoLog(shader)
+	if (error.length > 0) {
+		throw error
+	}
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		throw 'cannot compile shader'
+	}
+	return shader
 }
 
 function linkProgram(vs, fs) {
 	var p = gl.createProgram()
-	if (p) {
-		gl.attachShader(p, vs)
-		gl.attachShader(p, fs)
-		gl.linkProgram(p)
-
-		if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-			gl.deleteProgram(p)
-			p = null
-		}
+	gl.attachShader(p, vs)
+	gl.attachShader(p, fs)
+	gl.linkProgram(p)
+	if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+		throw new Error(gl.getProgramInfoLog(p))
 	}
 	return p
 }
 
 function buildProgram(vertexSource, fragmentSource) {
-	var p, vs, fs
-	if ((vs = compileShader(vertexSource, gl.VERTEX_SHADER))) {
-		if ((fs = compileShader(fragmentSource, gl.FRAGMENT_SHADER))) {
-			p = linkProgram(vs, fs)
-			gl.deleteShader(fs)
-		}
-
-		gl.deleteShader(vs)
-	}
-	return p
+	return linkProgram(
+		compileShader(vertexSource, gl.VERTEX_SHADER),
+		compileShader(fragmentSource, gl.FRAGMENT_SHADER))
 }
 
 function createPrograms() {
-	var fs = D.getElementById('FragmentShader').textContent
-	return (program = buildProgram(
-			D.getElementById('VertexShader').textContent,
-			fs)) &&
-		(seaProgram = buildProgram(
-			D.getElementById('SeaVertexShader').textContent,
-			fs))
+	shadowProgram = buildProgram(
+		D.getElementById('LightVertexShader').textContent,
+		D.getElementById('LightFragmentShader').textContent)
+	cacheLocations(shadowProgram, ['vertex', 'normal'],
+		['lightProjMat', 'lightModelViewMat'])
+
+	program = buildProgram(
+		D.getElementById('VertexShader').textContent,
+		D.getElementById('FragmentShader').textContent)
+	cacheLocations(program, ['vertex', 'normal'], [
+		'projMat', 'modelViewMat', 'normalMat',
+		'lightProjMat', 'lightModelViewMat', 'lightDirection',
+		'far', 'sky', 'color', 'shadowDepthTexture'])
+
+	seaProgram = buildProgram(
+		D.getElementById('SeaVertexShader').textContent,
+		D.getElementById('SeaFragmentShader').textContent)
+	cacheLocations(seaProgram, ['vertex', 'normal'], [
+		'projMat', 'modelViewMat', 'normalMat',
+		'lightDirection',
+		'far', 'sky', 'color',
+		'time', 'radius'])
+
+	controlsProgram = buildProgram(
+		D.getElementById('ControlsVertexShader').textContent,
+		D.getElementById('ControlsFragmentShader').textContent)
+	cacheLocations(controlsProgram, ['vertex', 'normal'], [
+		'projMat', 'modelViewMat', 'color'])
+}
+
+function createShadowBuffer() {
+	shadowFramebuffer = gl.createFramebuffer()
+	gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFramebuffer)
+
+	shadowDepthTexture = gl.createTexture()
+	gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture)
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, shadowDepthTextureSize,
+		shadowDepthTextureSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+
+	var renderBuffer = gl.createRenderbuffer()
+	gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer)
+	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16,
+		shadowDepthTextureSize, shadowDepthTextureSize)
+
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+		gl.TEXTURE_2D, shadowDepthTexture, 0)
+	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT,
+		gl.RENDERBUFFER, renderBuffer)
+
+	gl.bindTexture(gl.TEXTURE_2D, null)
+	gl.bindRenderbuffer(gl.RENDERBUFFER, null)
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 }
 
 function getContext() {
@@ -1620,13 +1838,14 @@ function getContext() {
 }
 
 function init() {
-	if (!(text = D.getElementById('Text')) || !(gl = getContext()) ||
-			!createPrograms()) {
+	if (!(text = D.getElementById('Text')) || !(gl = getContext())) {
 		alert('WebGL not available')
 		return
 	}
 
-	cacheLocations()
+	setOrthogonal(lightProjMat, -40, 40, -40, 40, -80.0, 80)
+	createShadowBuffer()
+	createPrograms()
 	createSea()
 	createPlayer()
 	createControls()
@@ -1635,7 +1854,6 @@ function init() {
 	gl.enable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
-	gl.clearColor(skyColor[0], skyColor[1], skyColor[2], skyColor[3])
 
 	W.onresize = resize
 	resize()
@@ -1649,7 +1867,7 @@ function init() {
 	D.onmouseout = pointerUp
 
 	if ('ontouchstart' in D) {
-		useTouchControls = true
+		showTouchControls = true
 		D.ontouchstart = pointerDown
 		D.ontouchmove = pointerMove
 		D.ontouchend = pointerUp

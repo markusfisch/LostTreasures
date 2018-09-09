@@ -44,13 +44,132 @@ canvas {
 <body>
 <canvas id="Canvas">Sorry, this browser cannot render this content.</canvas>
 <div id="Text"></div>
+<script id="LightVertexShader" type="x-shader/x-vertex">
+attribute vec3 vertex;
+attribute vec3 normal;
+
+uniform mat4 lightProjMat;
+uniform mat4 lightModelViewMat;
+
+void main (void) {
+	// keep `normal` or `drawElements()` won't work because the
+	// ARRAY_BUFFER was bound to a normal buffer
+	vec4(normal, 1.0);
+	gl_Position = lightProjMat * lightModelViewMat * vec4(vertex, 1.0);
+}
+</script>
+<script id="LightFragmentShader" type="x-shader/x-fragment">
+precision mediump float;
+
+vec4 encodeFloat(float depth) {
+	const vec4 bitShift = vec4(
+		256 * 256 * 256,
+		256 * 256,
+		256,
+		1.0
+	);
+	const vec4 bitMask = vec4(
+		0,
+		1.0 / 256.0,
+		1.0 / 256.0,
+		1.0 / 256.0
+	);
+	vec4 comp = fract(depth * bitShift);
+	comp -= comp.xxyz * bitMask;
+	return comp;
+}
+
+void main (void) {
+	gl_FragColor = encodeFloat(gl_FragCoord.z);
+}
+</script>
+<script id="VertexShader" type="x-shader/x-vertex">
+attribute vec3 vertex;
+attribute vec3 normal;
+
+uniform mat4 projMat;
+uniform mat4 modelViewMat;
+uniform mat4 normalMat;
+uniform mat4 lightModelViewMat;
+uniform mat4 lightProjMat;
+uniform vec3 lightDirection;
+
+varying mediump float intensity;
+varying mediump float z;
+varying vec4 shadowPos;
+
+const mat4 texUnitConverter = mat4(
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 0.5, 0.0,
+	0.5, 0.5, 0.5, 1.0
+);
+
+void main() {
+	gl_Position = projMat * modelViewMat * vec4(vertex, 1.);
+	z = gl_Position.z;
+	intensity = max(0., dot(normalize(mat3(normalMat) * normal),
+		lightDirection));
+	shadowPos = texUnitConverter * lightProjMat * lightModelViewMat *
+		vec4(vertex, 1.0);
+}
+</script>
+<script id="FragmentShader" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform float far;
+uniform vec4 sky;
+uniform vec4 color;
+uniform sampler2D shadowDepthTexture;
+
+varying mediump float intensity;
+varying mediump float z;
+varying vec4 shadowPos;
+
+float decodeFloat(vec4 c) {
+	const vec4 bitShift = vec4(
+		1.0 / (256.0 * 256.0 * 256.0),
+		1.0 / (256.0 * 256.0),
+		1.0 / 256.0,
+		1
+	);
+	return dot(c, bitShift);
+}
+
+void main() {
+	vec3 fragmentDepth = shadowPos.xyz;
+	fragmentDepth.z -= 0.007;
+	float texelSize = 1.0 / 512.0;
+	float amountInLight = 0.0;
+	for (int x = -1; x <= 1; ++x) {
+		for (int y = -1; y <= 1; ++y) {
+			float texelDepth = decodeFloat(texture2D(shadowDepthTexture,
+					fragmentDepth.xy + vec2(x, y) * texelSize));
+			if (fragmentDepth.z < texelDepth) {
+				amountInLight += 1.0;
+			}
+		}
+	}
+	amountInLight /= 9.0;
+	amountInLight *= intensity;
+	float f = z / far;
+	gl_FragColor = vec4(
+		(1. - f) * color.rgb * (.5 + amountInLight * .5) + f * sky.rgb,
+		color.a);
+}
+</script>
 <script id="SeaVertexShader" type="x-shader/x-vertex">
 attribute vec3 vertex;
 attribute vec3 normal;
 
-uniform mat4 mvp;
-uniform mat4 nm;
-uniform vec3 light;
+uniform mat4 projMat;
+uniform mat4 modelViewMat;
+uniform mat4 normalMat;
+uniform vec3 lightDirection;
 uniform float time;
 uniform float radius;
 
@@ -61,29 +180,14 @@ void main() {
 	float vx = mod(radius + vertex.x, radius);
 	float vy = mod(radius + vertex.y, radius);
 	float t = sin(time + vx + vy) * .3;
-	gl_Position = mvp * vec4(vertex.x, vertex.y + t, vertex.z, 1.);
+	gl_Position = projMat * modelViewMat *
+		vec4(vertex.x, vertex.y + t, vertex.z, 1.);
 	z = gl_Position.z;
-	intensity = max(0., dot(normalize(mat3(nm) * normal), light));
+	intensity = max(0., dot(normalize(mat3(normalMat) * normal),
+		lightDirection));
 }
 </script>
-<script id="VertexShader" type="x-shader/x-vertex">
-attribute vec3 vertex;
-attribute vec3 normal;
-
-uniform mat4 mvp;
-uniform mat4 nm;
-uniform vec3 light;
-
-varying mediump float intensity;
-varying mediump float z;
-
-void main() {
-	gl_Position = mvp * vec4(vertex, 1.);
-	z = gl_Position.z;
-	intensity = max(0., dot(normalize(mat3(nm) * normal), light));
-}
-</script>
-<script id="FragmentShader" type="x-shader/x-fragment">
+<script id="SeaFragmentShader" type="x-shader/x-fragment">
 #ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
 #else
@@ -102,6 +206,33 @@ void main() {
 	gl_FragColor = vec4(
 		(1. - f) * color.rgb * (.5 + intensity * .5) + f * sky.rgb,
 		color.a);
+}
+</script>
+<script id="ControlsVertexShader" type="x-shader/x-vertex">
+attribute vec3 vertex;
+attribute vec3 normal;
+
+uniform mat4 projMat;
+uniform mat4 modelViewMat;
+
+void main() {
+	// keep `normal` or `drawElements()` won't work because the
+	// ARRAY_BUFFER was bound to a normal buffer
+	vec4(normal, 1.0);
+	gl_Position = projMat * modelViewMat * vec4(vertex, 1.);
+}
+</script>
+<script id="ControlsFragmentShader" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform vec4 color;
+
+void main() {
+	gl_FragColor = color;
 }
 </script>
 <script src="src.js"></script>
