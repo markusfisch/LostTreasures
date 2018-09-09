@@ -1464,7 +1464,7 @@ function createFloor(mag) {
 }
 
 function newGame() {
-	coins = 1 + ((M.random() * 9) | 0)
+	coins = 5 + ((M.random() * 5) | 0)
 	coinsFound = 0
 
 	text.innerText = 'Find ' + coins + ' lost coins!'
