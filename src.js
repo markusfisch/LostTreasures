@@ -289,6 +289,49 @@ function transpose(out, a) {
 	}
 }
 
+function setOrthogonal(out, l, r, b, t, near, far) {
+	var lr = 1 / (l - r),
+		bt = 1 / (b - t),
+		nf = 1 / (near - far)
+	out[0] = -2 * lr
+	out[1] = 0
+	out[2] = 0
+	out[3] = 0
+	out[4] = 0
+	out[5] = -2 * bt
+	out[6] = 0
+	out[7] = 0
+	out[8] = 0
+	out[9] = 0
+	out[10] = 2 * nf
+	out[11] = 0
+	out[12] = (l + r) * lr
+	out[13] = (t + b) * bt
+	out[14] = (far + near) * nf
+	out[15] = 1
+}
+
+function setPerspective(out, fov, aspect, near, far) {
+	var f = 1 / M.tan(fov),
+		d = near - far
+	out[0] = f / aspect
+	out[1] = 0
+	out[2] = 0
+	out[3] = 0
+	out[4] = 0
+	out[5] = f
+	out[6] = 0
+	out[7] = 0
+	out[8] = 0
+	out[9] = 0
+	out[10] = (far + near) / d
+	out[11] = -1
+	out[12] = 0
+	out[13] = 0
+	out[14] = (2 * far * near) / d
+	out[15] = 0
+}
+
 function dist(a, x, y, z) {
 	var dx = a[12] - x,
 		dy = a[13] - y,
@@ -844,49 +887,6 @@ function setControls() {
 	diveButton.x = x
 	diveButton.y = y
 	diveButton.sizeSq = size * size
-}
-
-function setOrthogonal(out, l, r, b, t, near, far) {
-	var lr = 1 / (l - r),
-		bt = 1 / (b - t),
-		nf = 1 / (near - far)
-	out[0] = -2 * lr
-	out[1] = 0
-	out[2] = 0
-	out[3] = 0
-	out[4] = 0
-	out[5] = -2 * bt
-	out[6] = 0
-	out[7] = 0
-	out[8] = 0
-	out[9] = 0
-	out[10] = 2 * nf
-	out[11] = 0
-	out[12] = (l + r) * lr
-	out[13] = (t + b) * bt
-	out[14] = (far + near) * nf
-	out[15] = 1
-}
-
-function setPerspective(out, fov, aspect, near, far) {
-	var f = 1 / M.tan(fov),
-		d = near - far
-	out[0] = f / aspect
-	out[1] = 0
-	out[2] = 0
-	out[3] = 0
-	out[4] = 0
-	out[5] = f
-	out[6] = 0
-	out[7] = 0
-	out[8] = 0
-	out[9] = 0
-	out[10] = (far + near) / d
-	out[11] = -1
-	out[12] = 0
-	out[13] = 0
-	out[14] = (2 * far * near) / d
-	out[15] = 0
 }
 
 function setProjectionMatrix() {
@@ -1829,6 +1829,12 @@ function createShadowBuffer() {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 }
 
+function createLight() {
+	setOrthogonal(lightProjMat, -40, 40, -40, 40, -80.0, 80)
+	translate(staticLightViewMat, idMat, 0, 0, -40)
+	rotate(staticLightViewMat, staticLightViewMat, M.PI2 * .5, 1, -1, 0)
+}
+
 function getContext() {
 	for (var canvas = D.getElementById('Canvas'),
 			ctx,
@@ -1847,10 +1853,7 @@ function init() {
 		return
 	}
 
-	setOrthogonal(lightProjMat, -40, 40, -40, 40, -80.0, 80)
-	translate(staticLightViewMat, idMat, 0, 0, -40)
-	rotate(staticLightViewMat, staticLightViewMat, M.PI2 * .5, 1, -1, 0)
-
+	createLight()
 	createShadowBuffer()
 	createPrograms()
 	createSea()
