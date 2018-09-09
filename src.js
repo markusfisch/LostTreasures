@@ -17,6 +17,7 @@ var M = Math,
 	modelViewMat = new FA(16),
 	tmpMat = new FA(16),
 	horizon = 75,
+	staticLightViewMat = new FA(16),
 	lightProjMat = new FA(idMat),
 	lightViewMat = new FA(idMat),
 	lightDirection = [0, 0, 0],
@@ -488,9 +489,7 @@ function draw() {
 }
 
 function updateLightView(x, z) {
-	translate(lightViewMat, idMat, 0, 0, -40)
-	rotate(lightViewMat, lightViewMat, M.PI2 * .5, 1, -1, 0)
-	translate(lightViewMat, lightViewMat, -x, 0, -z)
+	translate(lightViewMat, staticLightViewMat, -x, 0, -z)
 	lightDirection[0] = lightViewMat[2]
 	lightDirection[1] = lightViewMat[6]
 	lightDirection[2] = lightViewMat[10]
@@ -850,7 +849,7 @@ function setControls() {
 function setOrthogonal(out, l, r, b, t, near, far) {
 	var lr = 1 / (l - r),
 		bt = 1 / (b - t),
-		nf = 1 / (near - far);
+		nf = 1 / (near - far)
 	out[0] = -2 * lr
 	out[1] = 0
 	out[2] = 0
@@ -1849,6 +1848,9 @@ function init() {
 	}
 
 	setOrthogonal(lightProjMat, -40, 40, -40, 40, -80.0, 80)
+	translate(staticLightViewMat, idMat, 0, 0, -40)
+	rotate(staticLightViewMat, staticLightViewMat, M.PI2 * .5, 1, -1, 0)
+
 	createShadowBuffer()
 	createPrograms()
 	createSea()
