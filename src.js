@@ -455,12 +455,11 @@ function drawEntities(uniforms, attribs) {
 		if (e.found) {
 			continue
 		}
-		var em = e.matrix
 		if (model != e.model) {
 			model = e.model
 			bindModel(attribs, model)
 		}
-		setModel(uniforms, em)
+		setModel(uniforms, e.matrix)
 		drawModel(model.count, uniforms, e.color)
 	}
 }
