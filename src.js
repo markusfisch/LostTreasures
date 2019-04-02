@@ -1882,6 +1882,17 @@ function init() {
 		D.ontouchend = pointerUp
 		D.ontouchleave = pointerUp
 		D.ontouchcancel = pointerUp
+
+		// prevent pinch/zoom on iOS 11
+		D.addEventListener('gesturestart', function(event) {
+			event.preventDefault()
+		}, false)
+		D.addEventListener('gesturechange', function(event) {
+			event.preventDefault()
+		}, false)
+		D.addEventListener('gestureend', function(event) {
+			event.preventDefault()
+		}, false)
 	}
 
 	last = Date.now() - 16
