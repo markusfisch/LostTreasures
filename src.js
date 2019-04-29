@@ -33,6 +33,7 @@ var M = Math,
 	sea,
 	floor,
 	player,
+	bindModel,
 	setModel,
 	drawModel,
 	showTouchControls = false,
@@ -365,7 +366,7 @@ function setShadowModel(uniforms, mm) {
 	gl.uniformMatrix4fv(uniforms.lightModelViewMat, false, modelViewMat)
 }
 
-function bindModel(attribs, model) {
+function bindCameraModel(attribs, model) {
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.vertices)
 	gl.vertexAttribPointer(attribs.vertex, 3, gl.FLOAT, false, 0, 0)
 	gl.bindBuffer(gl.ARRAY_BUFFER, model.normals)
@@ -373,12 +374,21 @@ function bindModel(attribs, model) {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
 }
 
-function drawTouchControls(uniforms, attribs) {
+function bindShadowModel(attribs, model) {
+	gl.bindBuffer(gl.ARRAY_BUFFER, model.vertices)
+	gl.vertexAttribPointer(attribs.vertex, 3, gl.FLOAT, false, 0, 0)
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.indicies)
+}
+
+function drawTouchControls() {
 	var uniforms = controlsProgram.uniforms,
 		attribs = controlsProgram.attribs
 
 	gl.useProgram(controlsProgram)
 	gl.uniformMatrix4fv(uniforms.projMat, false, controlsProjMat)
+
+	gl.enableVertexAttribArray(attribs.vertex)
+	bindModel = bindShadowModel
 
 	var model = touchStick.model
 	bindModel(attribs, model)
@@ -392,6 +402,8 @@ function drawTouchControls(uniforms, attribs) {
 	scale(tmpMat, diveButton.matrix, s, s, s)
 	gl.uniformMatrix4fv(uniforms.modelViewMat, false, tmpMat)
 	drawCameraModel(model.count, uniforms, diveButton.color)
+
+	gl.disableVertexAttribArray(attribs.vertex)
 }
 
 function drawSea() {
@@ -476,6 +488,7 @@ function drawCameraView() {
 		attribs = program.attribs
 
 	gl.useProgram(program)
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 	gl.viewport(0, 0, width, height)
 	gl.clearColor(skyColor[0], skyColor[1], skyColor[2], skyColor[3])
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
@@ -490,6 +503,12 @@ function drawCameraView() {
 	gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture)
 	gl.uniform1i(uniforms.shadowDepthTexture, 0)
 
+	gl.enableVertexAttribArray(attribs.vertex)
+	gl.enableVertexAttribArray(attribs.normal)
+	bindModel = bindCameraModel
+	setModel = setCameraModel
+	drawModel = drawCameraModel
+
 	drawFloor(uniforms, attribs)
 	drawEntities(uniforms, attribs)
 	drawPlayer(uniforms, attribs)
@@ -497,7 +516,11 @@ function drawCameraView() {
 
 	// draw transparent objects over opaque ones and from back to front
 	drawSea()
-	showTouchControls && drawTouchControls(uniforms, attribs)
+
+	gl.disableVertexAttribArray(attribs.vertex)
+	gl.disableVertexAttribArray(attribs.normal)
+
+	showTouchControls && drawTouchControls()
 }
 
 function drawShadowMap() {
@@ -513,20 +536,19 @@ function drawShadowMap() {
 
 	gl.uniformMatrix4fv(uniforms.lightProjMat, false, lightProjMat)
 
+	gl.enableVertexAttribArray(attribs.vertex)
+	bindModel = bindShadowModel
+	setModel = setShadowModel
+	drawModel = drawShadowModel
 	drawFloor(uniforms, attribs)
 	drawEntities(uniforms, attribs)
 	drawPlayer(uniforms, attribs)
 	drawBubbles(uniforms, attribs)
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+	gl.disableVertexAttribArray(attribs.vertex)
 }
 
 function draw() {
-	setModel = setShadowModel
-	drawModel = drawShadowModel
 	drawShadowMap()
-	setModel = setCameraModel
-	drawModel = drawCameraModel
 	drawCameraView()
 }
 
@@ -857,7 +879,7 @@ function pointerDown(event) {
 
 function setKey(event, down) {
 	keysDown[event.keyCode] = down
-	event.preventDefault()
+	event.stopPropagation()
 }
 
 function keyUp(event) {
@@ -1725,7 +1747,6 @@ function cacheAttribLocations(program, attribs) {
 		if (loc < 0) {
 			throw 'attribute "' + name + '" not found'
 		}
-		gl.enableVertexAttribArray(loc)
 		program.attribs[name] = loc
 	}
 }
@@ -1795,11 +1816,6 @@ function createPrograms() {
 		D.getElementById('ControlsFragmentShader').textContent)
 	cacheLocations(controlsProgram, ['vertex'], [
 		'projMat', 'modelViewMat', 'color'])
-
-	// give normal attribute an index because drawElements() will
-	// refuse to draw anything when normal is unset because the
-	// ARRAY_BUFFER is bound to the normal array
-	shadowProgram.attribs.normal = controlsProgram.attribs.normal = 1
 }
 
 function createShadowBuffer() {
