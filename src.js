@@ -845,8 +845,6 @@ function setPointer(event, down) {
 
 	event.preventDefault()
 	event.stopPropagation()
-	event.cancelBubble = true
-	event.returnValue = false
 }
 
 function pointerUp(event) {
