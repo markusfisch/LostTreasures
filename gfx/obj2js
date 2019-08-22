@@ -1,7 +1,6 @@
-#/usr/bin/env bash
-
+#!/usr/bin/env bash
 FACES=1
-echo "var vertices = ["
+echo 'var vertices = ['
 while read -r COMMAND A B C
 do
 	case "$COMMAND" in
@@ -11,26 +10,31 @@ do
 				BEFORE=${N%%.*}
 				AFTER=${N##*.}
 				N="${BEFORE}.${AFTER:0:3}"
-				if [ $BEFORE == '0' ] || [ $BEFORE == '-0' ]
+				if [ "$BEFORE" == '0' ] || [ "$BEFORE" == '-0' ]
 				then
-					[[ "$AFTER" =~ ^[0]*$ ]] && N=0
+					if [[ "$AFTER" =~ ^[0]*$ ]]
+					then
+						N=0
+					else
+						N=".${N#*.}"
+					fi
 				fi
 				echo -n "$N, "
 			done
 			echo
 			;;
 		f)
-			(( FACES )) && {
-				echo "], indicies = ["
+			((FACES)) && {
+				echo '], indicies = ['
 				FACES=0
 			}
 			for N in "$A" "$B" "$C"
 			do
 				N=${N%%/*}
-				echo -n "$(( N-1 )), "
+				echo -n "$((N - 1)), "
 			done
 			echo
 			;;
 	esac
 done
-echo "]"
+echo ']'
