@@ -18,6 +18,9 @@ do
 					else
 						N=".${N#*.}"
 					fi
+				elif [[ "$AFTER" =~ ^[0]*$ ]]
+				then
+					N=${N%.*}
 				fi
 				echo -n "$N, "
 			done
