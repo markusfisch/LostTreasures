@@ -23,7 +23,7 @@ var M = Math,
 	lightDirection = [0, 0, 0],
 	skyColor = [.43, .73, .96, 1],
 	shadowFramebuffer,
-	shadowDepthTextureSize = 512,
+	shadowDepthTextureSize = 1024,
 	shadowDepthTexture,
 	shadowProgram,
 	program,
@@ -1557,26 +1557,20 @@ function createCoinModel() {
 }
 
 function createPyramidModel() {
-	// will have shared normals!
-	return createModel([
-		// tip
-		0, 1, 0,
-		// bottom
-		-1, -1, -1,
+	var vertices = [
 		1, -1, -1,
+		1, -1, 1,
+		-1, -1, -1,
+		0, 1, 0,
 		-1, -1, 1,
-		1, -1, 1],[
-		// front
-		0, 3, 4,
-		// right
-		0, 4, 2,
-		// back
-		0, 1, 2,
-		// left
-		0, 3, 1,
-		// bottom
-		1, 3, 2,
-		2, 3, 4])
+	], indicies = [
+		3, 4, 1,
+		4, 3, 2,
+		3, 1, 0,
+		0, 2, 3,
+	]
+
+	return createModel(vertices, indicies)
 }
 
 function createBubbles() {
@@ -1758,12 +1752,8 @@ function compileShader(src, type) {
 	var shader = gl.createShader(type)
 	gl.shaderSource(shader, src)
 	gl.compileShader(shader)
-	var error = gl.getShaderInfoLog(shader)
-	if (error.length > 0) {
-		throw error
-	}
 	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-		throw 'cannot compile shader'
+		throw gl.getShaderInfoLog(shader)
 	}
 	return shader
 }
@@ -1774,7 +1764,7 @@ function linkProgram(vs, fs) {
 	gl.attachShader(p, fs)
 	gl.linkProgram(p)
 	if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-		throw new Error(gl.getProgramInfoLog(p))
+		throw gl.getProgramInfoLog(p)
 	}
 	return p
 }
@@ -1824,6 +1814,8 @@ function createShadowBuffer() {
 	gl.bindTexture(gl.TEXTURE_2D, shadowDepthTexture)
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, shadowDepthTextureSize,
 		shadowDepthTextureSize, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
 
@@ -1876,6 +1868,7 @@ function init() {
 
 	gl.enable(gl.DEPTH_TEST)
 	gl.enable(gl.BLEND)
+	gl.enable(gl.CULL_FACE)
 	gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
 	W.onresize = resize
