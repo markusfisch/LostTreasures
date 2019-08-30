@@ -6,6 +6,7 @@ while read -r COMMAND A B C
 do
 	case "$COMMAND" in
 		v)
+			echo -n $'\t'
 			for N in "$A" "$B" "$C"
 			do
 				BEFORE=${N%%.*}
@@ -23,7 +24,7 @@ do
 				then
 					N=${N%.*}
 				fi
-				echo -n "$N, "
+				echo -n "$N,"
 			done
 			echo
 			;;
@@ -32,10 +33,11 @@ do
 				echo '], indicies = ['
 				FACES=0
 			}
+			echo -n $'\t'
 			for N in "$A" "$B" "$C"
 			do
 				N=${N%%/*}
-				echo -n "$((N - 1)), "
+				echo -n "$((N - 1)),"
 			done
 			echo
 			;;
