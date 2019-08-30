@@ -17,7 +17,7 @@ do
 					then
 						N=0
 					else
-						N=".${N#*.}"
+						N="${BEFORE%0*}.${N#*.}"
 					fi
 				elif [[ "$AFTER" =~ ^[0]*$ ]]
 				then
