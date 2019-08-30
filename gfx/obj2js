@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+readonly PRECISION=${PRECISION:-2}
 FACES=1
 echo 'var vertices = ['
 while read -r COMMAND A B C
@@ -9,7 +10,7 @@ do
 			do
 				BEFORE=${N%%.*}
 				AFTER=${N##*.}
-				N="${BEFORE}.${AFTER:0:3}"
+				N="${BEFORE}.${AFTER:0:$PRECISION}"
 				if [ "$BEFORE" == '0' ] || [ "$BEFORE" == '-0' ]
 				then
 					if [[ "$AFTER" =~ ^[0]*$ ]]
