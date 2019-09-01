@@ -552,13 +552,6 @@ function draw() {
 	drawCameraView()
 }
 
-function updateLightView(x, z) {
-	translate(lightViewMat, staticLightViewMat, -x, 0, -z)
-	lightDirection[0] = lightViewMat[2]
-	lightDirection[1] = lightViewMat[6]
-	lightDirection[2] = lightViewMat[10]
-}
-
 function update() {
 	var pm = player.matrix,
 		px = pm[12],
@@ -598,14 +591,18 @@ function update() {
 
 	player.propRot += velo
 	rotate(player.propMat, boatMat, player.propRot, 0, 0, 1)
-
-	updateLightView(px, pz)
 }
 
 function updateView(mat) {
 	invert(viewMat, mat)
 	translate(tmpMat, idMat, 0, 6, -30)
 	multiply(viewMat, tmpMat, viewMat)
+
+	// update light
+	translate(lightViewMat, staticLightViewMat, -mat[12], 0, -mat[14])
+	lightDirection[0] = lightViewMat[2]
+	lightDirection[1] = lightViewMat[6]
+	lightDirection[2] = lightViewMat[10]
 }
 
 function getFloorOffset(x, z) {
@@ -1663,8 +1660,6 @@ function newGame() {
 	player.v = 0
 	player.depth = 0
 	player.tilt = 0
-
-	updateView(player.matrix)
 }
 
 function createControls() {
