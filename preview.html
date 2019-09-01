@@ -45,6 +45,12 @@ canvas {
 <canvas id="Canvas">Sorry, this browser cannot render this content.</canvas>
 <div id="Text"></div>
 <script id="LightVertexShader" type="x-shader/x-vertex">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 attribute vec3 vertex;
 
 uniform mat4 lightProjMat;
@@ -55,7 +61,11 @@ void main() {
 }
 </script>
 <script id="LightFragmentShader" type="x-shader/x-fragment">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 
 void main() {
 	const vec4 bitShift = vec4(16777216., 65536., 256., 1.);
@@ -66,6 +76,12 @@ void main() {
 }
 </script>
 <script id="VertexShader" type="x-shader/x-vertex">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 attribute vec3 vertex;
 attribute vec3 normal;
 
@@ -76,8 +92,8 @@ uniform mat4 lightModelViewMat;
 uniform mat4 lightProjMat;
 uniform vec3 lightDirection;
 
-varying mediump float intensity;
-varying mediump float z;
+varying float intensity;
+varying float z;
 varying vec4 shadowPos;
 
 const mat4 texUnitConverter = mat4(
@@ -108,8 +124,8 @@ uniform vec4 sky;
 uniform vec4 color;
 uniform sampler2D shadowDepthTexture;
 
-varying mediump float intensity;
-varying mediump float z;
+varying float intensity;
+varying float z;
 varying vec4 shadowPos;
 
 const vec4 bitShift = vec4(1. / 16777216., 1. / 65536., 1. / 256., 1.);
@@ -138,6 +154,12 @@ void main() {
 }
 </script>
 <script id="SeaVertexShader" type="x-shader/x-vertex">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 attribute vec3 vertex;
 attribute vec3 normal;
 
@@ -148,8 +170,8 @@ uniform vec3 lightDirection;
 uniform float time;
 uniform float radius;
 
-varying mediump float intensity;
-varying mediump float z;
+varying float intensity;
+varying float z;
 
 void main() {
 	float vx = mod(radius + vertex.x, radius);
@@ -173,17 +195,23 @@ uniform float far;
 uniform vec4 sky;
 uniform vec4 color;
 
-varying mediump float intensity;
-varying mediump float z;
+varying float intensity;
+varying float z;
 
 void main() {
-	float f = z / far;
+	float fog = z / far;
 	gl_FragColor = vec4(
-		(1. - f) * color.rgb * (.5 + intensity * .5) + f * sky.rgb,
+		(1. - fog) * color.rgb * (.5 + intensity * .5) + fog * sky.rgb,
 		color.a);
 }
 </script>
 <script id="ControlsVertexShader" type="x-shader/x-vertex">
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
 attribute vec3 vertex;
 
 uniform mat4 projMat;
